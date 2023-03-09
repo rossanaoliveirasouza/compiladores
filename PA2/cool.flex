@@ -49,12 +49,16 @@ extern YYSTYPE cool_yylval;
  * Define names for regular expressions here.
  */
 
-DARROW          =>
-FOOBAR          [[:digit:]]+      
-ID              let" "[[:alnum:]]+   
-LET             let" "  
-          
-
+DARROW              =>
+FOOBAR              [[:digit:]]+      
+ID                  let" "[[:alnum:]]+     
+LOWERCASE_LETTER    [a-z]
+UPPERCASE_LETTER    [A-Z] 
+LETTER              ({LOWERCASE_LETTER}|{UPPERCASE_LETTER})         
+BLANK               (" "|\f|\r|\t|\v)
+OPERATOR            ("+"|"-"|"*"|\/)
+SINGLE_CHAR_TOKEN   ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
+CLASS               (class|CLASS)
 
 %%
 
@@ -66,9 +70,9 @@ LET             let" "
  /*
   *  The multiple-character operators.
   */
+{CLASS} {printf("qualquer coisa");}
 {DARROW}		{ return (DARROW); }
 
-if {printf("qualquer coisa");}
 {FOOBAR}     { printf("digit: %s", yytext); }
  /*
   * Keywords are case-insensitive except for the values true and false,
