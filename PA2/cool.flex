@@ -50,6 +50,11 @@ extern YYSTYPE cool_yylval;
  */
 
 DARROW          =>
+FOOBAR          [[:digit:]]+      
+ID              let" "[[:alnum:]]+   
+LET             let" "  
+          
+
 
 %%
 
@@ -63,6 +68,8 @@ DARROW          =>
   */
 {DARROW}		{ return (DARROW); }
 
+if {printf("qualquer coisa");}
+{FOOBAR}     { printf("digit: %s", yytext); }
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
