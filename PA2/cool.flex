@@ -50,15 +50,27 @@ extern YYSTYPE cool_yylval;
  */
 
 DARROW              =>
-FOOBAR              [[:digit:]]+      
-ID                  let" "[[:alnum:]]+     
-LOWERCASE_LETTER    [a-z]
-UPPERCASE_LETTER    [A-Z] 
-LETTER              ({LOWERCASE_LETTER}|{UPPERCASE_LETTER})         
 BLANK               (" "|\f|\r|\t|\v)
-OPERATOR            ("+"|"-"|"*"|\/)
 SINGLE_CHAR_TOKEN   ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
-CLASS               (class|CLASS)
+CLASS               [Cc][Ll][Aa][Ss][Ss]
+IN                  [Ii][Nn]  
+ELSE                [Ee][Ll][Ss][Ee]   
+FI                  [Ff][Ii]          
+IF                  [Ii][Ff]          
+INHERITS            [Ii][Nn][Hh][Ee][Rr][Ii][Tt][Ss] 
+ISVOID              [Ii][Ss][Vv][Oo][Ii][Dd]    
+LOOP                [Ll][Oo][Oo][Pp]   
+POOL                [Pp][Oo][Oo][Ll]   
+THEN                [Tt][Hh][Ee][Nn]   
+WHILE               [Ww][Hh][Ii][Ll][Ee]
+LET                 [Ll][Ee][Tt]  
+CASE                [Cc][Aa][Ss][Ee]
+ESAC                [Ee][Ss][Aa][Cc]   
+NEW                 [Nn][Ee][Ww]      
+OF                  [Oo][Ff]          
+NOT                 [Nn][Oo][Tt]      
+BOOL_CONST_FALSE    [Ff]alse
+BOOL_CONST_TRUE     [Tt]rue
 
 %%
 
@@ -70,10 +82,35 @@ CLASS               (class|CLASS)
  /*
   *  The multiple-character operators.
   */
-{CLASS} {printf("qualquer coisa");}
-{DARROW}		{ return (DARROW); }
+                    
 
-{FOOBAR}     { printf("digit: %s", yytext); }
+{CLASS}             { return CLASS;}
+{IN}                { return IN; }
+{DARROW}            { return DARROW; }
+{BLANK}             { /* ignore */ }
+{SINGLE_CHAR_TOKEN} { return yytext[0]; }
+{IN}                { return IN; }
+{ELSE}              { return ELSE; }
+{FI}                { return FI; }
+{IF}                { return IF; }
+{INHERITS}          { return INHERITS; }
+{ISVOID}            { return ISVOID; }
+{LET}               { return LET; }
+{LOOP}              { return LOOP; }
+{POOL}              { return POOL; }
+{THEN}              { return THEN; }
+{WHILE}             { return WHILE; }
+{CASE}              { return CASE; }
+{ESAC}              { return ESAC; }
+{NEW}               { return NEW; }
+{OF}                { return OF; }
+{NOT}               { return NOT; }
+{BOOL_CONST_FALSE}  { return (BOOL_CONST); }
+{BOOL_CONST_TRUE}  { return (BOOL_CONST); }
+
+
+
+
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
