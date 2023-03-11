@@ -49,21 +49,21 @@ extern YYSTYPE cool_yylval;
  * Define names for regular expressions here.
  */
 
-BLANK                                               " "|\f|\r|\t|\v
+BLANK                                               [" "\f\r\t\v]
 
 BITWISE_OPERATORS                                   "~"
-COMPARISON_OPERATORS                                "<"|"="|">"
-ARITHMETIC_OPERATORS                                "+"|"-"|"/"|"*"
+COMPARISON_OPERATORS                                [<=>]
+ARITHMETIC_OPERATORS                                [+\-\/\*]
 
 TYPE_DECLARATION_OPERATOR                           ":"
 END_OF_STATEMENT_OPERATOR                           ";"
 
-SCOPE_DELIMITERS                                    "("|")"|"{"|"}"
+SCOPE_DELIMITERS                                    [\{\}\(\)]
 
-INTEGER_CONSTANT                                    [-+]?[0-9]+
+INTEGER_CONSTANT                                    [\-+]?[0-9]+
 
-LETTER_ESCAPE                                       \a|\b|\c|\d|\e|\g|\h|\i|\j|\k|\l|\m|\o|\p|\q|\u|\v|\w|\x|\y|\z
-STRING_CONSTANT                                     ".*({LETTER_ESCAPE})*(\\\n.*)*.*"
+LETTER_ESCAPE                                       \\[a-z]
+STRING_CONSTANT                                     \".*({LETTER_ESCAPE})*(\\\n.*)*.*\"
 
 IDENTIFIER                                          [a-z_][a-zA-Z0-9_]*
 INT_TYPE                                            [Ii][Nn][Tt]
@@ -75,7 +75,7 @@ TYPE_ID                                             {INT_TYPE}|{BOOL_TYPE}|{OBJE
 
 SELF_KEYWORD                                        self
 
-SINGLE_CHAR_TOKEN                                   ("."|","|"@")
+SINGLE_CHAR_TOKEN                                   [\.,@]
 CLASS                                               [Cc][Ll][Aa][Ss][Ss]
 IN                                                  [Ii][Nn]  
 ELSE                                                [Ee][Ll][Ss][Ee]   
