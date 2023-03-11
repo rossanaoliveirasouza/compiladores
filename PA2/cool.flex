@@ -43,11 +43,10 @@ extern YYSTYPE cool_yylval;
  *  Add Your own definitions here
  */
 
-int comment_start_symbol= 0;
+int comment_start_symbol = 0;
+int string_start_symbol = 0;
 bool in_nested_comment = false;
-
 bool in_string = false;
-
 
 %}
 
@@ -57,42 +56,40 @@ bool in_string = false;
 
 %x MULTIPLE_COMMENT
 %x INLINE_COMMENT
+%x STRING_CONSTANT
 
-DARROW              =>
-LE                  <=
-ASSIGN              <-
-MULTIPLE_COMMENT_START  "(*"
-MULTIPLE_COMMENT_END    "*)"
-INLINE_COMMENT_TOKEN          "--"
-BLANK               (" "|\f|\r|\t|\v)
-OPERATOR            ("+"|"-"|"*"|"/")
-SINGLE_CHAR_TOKEN   ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
-TYPEID              [A-Z][a-zA-Z0-9_]*
-OBJECTID            [a-z][a-zA-Z0-9_]*
-CLASS               [Cc][Ll][Aa][Ss][Ss]
-IN                  [Ii][Nn]  
-ELSE                [Ee][Ll][Ss][Ee]   
-FI                  [Ff][Ii]          
-IF                  [Ii][Ff]          
-INHERITS            [Ii][Nn][Hh][Ee][Rr][Ii][Tt][Ss] 
-ISVOID              [Ii][Ss][Vv][Oo][Ii][Dd]    
-LOOP                [Ll][Oo][Oo][Pp]   
-POOL                [Pp][Oo][Oo][Ll]   
-THEN                [Tt][Hh][Ee][Nn]   
-WHILE               [Ww][Hh][Ii][Ll][Ee]
-LET                 [Ll][Ee][Tt]  
-CASE                [Cc][Aa][Ss][Ee]
-ESAC                [Ee][Ss][Aa][Cc]   
-NEW                 [Nn][Ee][Ww]      
-OF                  [Oo][Ff]          
-NOT                 [Nn][Oo][Tt]      
-BOOL_CONST_FALSE    f[Aa][Ll][Ss][Ee]
-BOOL_CONST_TRUE     t[Rr][Uu][Ee]
-
-EOF                 [\r\n]+$
-
-
-
+DARROW                      =>
+LE                          <=
+ASSIGN                      <-
+MULTIPLE_COMMENT_START      "(*"
+MULTIPLE_COMMENT_END        "*)"
+INLINE_COMMENT_TOKEN        "--"
+BLANK                       (" "|\f|\r|\t|\v)
+OPERATOR                    ("+"|"-"|"*"|"/")
+SINGLE_CHAR_TOKEN           ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
+TYPEID                      [A-Z][a-zA-Z0-9_]*
+OBJECTID                    [a-z][a-zA-Z0-9_]*
+CLASS                       [Cc][Ll][Aa][Ss][Ss]
+IN                          [Ii][Nn]  
+ELSE                        [Ee][Ll][Ss][Ee]   
+FI                          [Ff][Ii]          
+IF                          [Ii][Ff]          
+INHERITS                    [Ii][Nn][Hh][Ee][Rr][Ii][Tt][Ss] 
+ISVOID                      [Ii][Ss][Vv][Oo][Ii][Dd]    
+LOOP                        [Ll][Oo][Oo][Pp]   
+POOL                        [Pp][Oo][Oo][Ll]   
+THEN                        [Tt][Hh][Ee][Nn]   
+WHILE                       [Ww][Hh][Ii][Ll][Ee]
+LET                         [Ll][Ee][Tt]  
+CASE                        [Cc][Aa][Ss][Ee]
+ESAC                        [Ee][Ss][Aa][Cc]   
+NEW                         [Nn][Ee][Ww]      
+OF                          [Oo][Ff]          
+NOT                         [Nn][Oo][Tt]      
+BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
+BOOL_CONST_TRUE             t[Rr][Uu][Ee]
+STR_CONST                   
+INT_CONST                   {DIGIT}+
 
 %%
 
@@ -106,7 +103,6 @@ EOF                 [\r\n]+$
 <MULTIPLE_COMMENT>{MULTIPLE_COMMENT_END} { // Para cada simbolo encontrado diminui 
   comment_start_symbol--;
 
-
   if (comment_start_symbol == 0) {
     in_nested_comment = false;
     BEGIN(INITIAL);
@@ -116,8 +112,6 @@ EOF                 [\r\n]+$
     cool_yylval.error_msg = "final de comentario inesperado!";
 	  return (ERROR);
   }
-
-
 }
 
 <MULTIPLE_COMMENT><<EOF>> {
@@ -136,9 +130,6 @@ EOF                 [\r\n]+$
   }
 }
 
-
-
-
  /*
   *  inline comment
   */
@@ -146,7 +137,6 @@ EOF                 [\r\n]+$
 {INLINE_COMMENT_TOKEN} {BEGIN(INLINE_COMMENT);}
 <INLINE_COMMENT>.      {}
 <INLINE_COMMENT>\n     { curr_lineno++; BEGIN(INITIAL); }
-
 
  /*
   *  The multiple-character operators.
@@ -175,22 +165,24 @@ EOF                 [\r\n]+$
 {NEW}               { return NEW; }
 {OF}                { return OF; }
 {NOT}               { return NOT; }
-{BOOL_CONST_FALSE}  { return (BOOL_CONST); }
-{BOOL_CONST_TRUE}  { return (BOOL_CONST); }
 
-{TYPEID}  { 
+
+{TYPEID} { 
   yylval.symbol = inttable.add_string(yytext); return (TYPEID); 
-  
-  }
+}
 
-
-
+{OBJECTID} {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return (OBJECTID);
+}
 
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
   */
 
+{BOOL_CONST_FALSE}  { return (BOOL_CONST); }
+{BOOL_CONST_TRUE}  { return (BOOL_CONST); }
 
  /*
   *  String constants (C syntax)
@@ -198,6 +190,8 @@ EOF                 [\r\n]+$
   *  \n \t \b \f, the result is c.
   *
   */
+
+{STR_CONST}{BEGIN(STRING_CONSTANT); string_start_symbol++; in_string = true; }
 
 
 %%

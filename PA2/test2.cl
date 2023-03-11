@@ -6,6 +6,7 @@
 class Main {
     cells : CellularAutomaton;
     variavel : Bool ;
+    variavelstring : String ;
    
     main() : SELF_TYPE {
         {
@@ -13,6 +14,7 @@ class Main {
             (let countdown : Int <- 20 in
                 while countdown > 0 loop
                     {
+                        variavelstring <- "qualquer string";
                         cells.evolve();
                         cells.print();
                         variavel <-  true;
