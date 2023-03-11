@@ -48,6 +48,18 @@ int string_start_symbol = 0;
 bool in_nested_comment = false;
 bool in_string = false;
 
+#define MAXIMUM_LENGTH_OF_STRING_CONSTANT 256
+
+bool escape_line_break_was_used = false;
+
+char stringConstant[MAXIMUM_LENGTH_OF_STRING_CONSTANT];
+int stringConstantNextCharIndex = 0;
+
+void resetStringConstant() {
+  memset(stringConstant, '\0', MAXIMUM_LENGTH_OF_STRING_CONSTANT);
+  stringConstantNextCharIndex = 0;
+}
+
 %}
 
 /*
@@ -89,8 +101,6 @@ NOT                         [Nn][Oo][Tt]
 BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
 BOOL_CONST_TRUE             t[Rr][Uu][Ee]
 INT_CONST                   [0-9]+
-
-STRING_CONSTANT             "\"".*(\\\n.*)*.*"\""
 
 %%
 
@@ -142,14 +152,95 @@ STRING_CONSTANT             "\"".*(\\\n.*)*.*"\""
 <INLINE_COMMENT>.      {}
 <INLINE_COMMENT>\n     { curr_lineno++; BEGIN(INITIAL); }
 
+
+ /*
+  *  String constants (C syntax)
+  *  Escape sequence \c is accepted for all characters c. Except for 
+  *  \n \t \b \f, the result is c.
+  *
+  */
+
+\" {
+  BEGIN(STRING_CONSTANT);
+
+  resetStringConstant();
+}
+
+<STRING_CONSTANT>\" {
+  BEGIN(INITIAL);
+  
+  stringConstant[stringConstantNextCharIndex] = '\0';
+  cool_yylval.symbol = stringtable.add_string(stringConstant);
+
+  resetStringConstant();
+
+  return STR_CONST;
+}
+
+<STRING_CONSTANT><EOF> {
+  cool_yylval.error_msg = "EOF in string constant";
+
+  resetStringConstant();
+
+  return (ERROR);
+}
+
+<STRING_CONSTANT>\n {
+  curr_lineno++;
+
+  cool_yylval.error_msg = "Unterminated string constant";
+
+  resetStringConstant();
+
+  return (ERROR);
+}
+
+<STRING_CONSTANT>\0 {
+  cool_yylval.error_msg = "String contains null character";
+
+  resetStringConstant();
+
+  return (ERROR);
+}
+
+<STRING_CONSTANT>(\\n|\\\n) {
+  curr_lineno++;
+  stringConstant[stringConstantNextCharIndex++] = '\n';
+}
+
+<STRING_CONSTANT>\\t {
+  stringConstant[stringConstantNextCharIndex++] = '\t';
+}
+
+<STRING_CONSTANT>\\f {
+  stringConstant[stringConstantNextCharIndex++] = '\f';
+}
+
+<STRING_CONSTANT>\\b {
+  stringConstant[stringConstantNextCharIndex++] = '\b';
+}
+
+<STRING_CONSTANT>. {
+  if (stringConstantNextCharIndex >= MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
+    cool_yylval.error_msg = "String constant too long";
+
+    resetStringConstant();
+
+    return ERROR;
+  }
+
+  stringConstant[stringConstantNextCharIndex++] = yytext[0];
+}
+
  /*
   *  The multiple-character operators.
   */              
 
+{BLANK}                     { /* ignore */ }
+
 {CLASS}                     { return CLASS;}
 {IN}                        { return IN; }
 {DARROW}                    { return DARROW; }
-{BLANK}                     { /* ignore */ }
 {SINGLE_CHAR_TOKEN}         { return yytext[0]; }
 {IN}                        { return IN; }
 {ELSE}                      { return ELSE; }
@@ -170,28 +261,28 @@ STRING_CONSTANT             "\"".*(\\\n.*)*.*"\""
 
 {ARITHMETIC_OPERATORS}      { return yytext[0]; }
 
-{STRING_CONSTANT}           { return STR_CONST; }
-
-
-\\n                         { printf("\n"); }
-\\t                         { printf("\t"); }
-\\b                         { printf("\b"); }
-\\f                         { printf("\f"); }
-
-\n	 { curr_lineno++; }
+\n { 
+  curr_lineno++;
+}
 
 {INT_CONST}    {
-  cool_yylval.symbol = idtable.add_string(yytext);
+  cool_yylval.symbol = inttable.add_string(yytext);
   return (INT_CONST);
-}     
+}    
 
 {TYPEID} { 
-  yylval.symbol = inttable.add_string(yytext); return (TYPEID); 
+  yylval.symbol = idtable.add_string(yytext);
+  return (TYPEID); 
 }
 
 {OBJECTID} {
   cool_yylval.symbol = idtable.add_string(yytext);
   return (OBJECTID);
+}
+
+. {
+  cool_yylval.error_msg = yytext;
+  return (ERROR);
 }
 
  /*
@@ -202,11 +293,5 @@ STRING_CONSTANT             "\"".*(\\\n.*)*.*"\""
 {BOOL_CONST_FALSE}  { return (BOOL_CONST); }
 {BOOL_CONST_TRUE}  { return (BOOL_CONST); }
 
- /*
-  *  String constants (C syntax)
-  *  Escape sequence \c is accepted for all characters c. Except for 
-  *  \n \t \b \f, the result is c.
-  *
-  */
 
 %%

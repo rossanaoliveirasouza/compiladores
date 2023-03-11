@@ -79,17 +79,21 @@ class TestingStrings {
     singleLineString : String = "Just a normal string 123 :)";
 
     multilineString : String = "This is a \
-                                multiline string! \
+                                multiline string!\
                                 Cool!";
 
-    stringWithSpecialCharacters : String = "The \n should become a break line";
+    stringWithLineBreak : String = "The \n should become a line break";
+
+    stringWithTab : String = "The \t should become a tab";
+
+    tooLongString : String = "Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!";
 };
 
 class ArithmeticOperations {
-    foo : Int = 10 * 10;
-    bar : Int = 10 / 10;
-    baz : Int = 10 + 10;
-    bla : Int = 10 - 10;
+    multiplication : Int = 10 * 10;
+    division : Int = 10 / 10;
+    sum : Int = 10 + 10;
+    subtraction : Int = 10 - 10;
 };
 
 class Main {
