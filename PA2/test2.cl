@@ -1,4 +1,6 @@
  (* \n a cell will live if exactly 1 of \n itself and it's immediate 
+ mais uma linha
+ mais uma linha
 *)
 
 -- TESTE

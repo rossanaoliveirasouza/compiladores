@@ -88,8 +88,7 @@ OF                          [Oo][Ff]
 NOT                         [Nn][Oo][Tt]      
 BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
 BOOL_CONST_TRUE             t[Rr][Uu][Ee]
-STR_CONST                   
-INT_CONST                   {DIGIT}+
+INT_CONST                   [0-9]+
 
 %%
 
@@ -98,6 +97,9 @@ INT_CONST                   {DIGIT}+
   */
 
 {MULTIPLE_COMMENT_START} {BEGIN(MULTIPLE_COMMENT); comment_start_symbol++; in_nested_comment=true;}
+
+<MULTIPLE_COMMENT>\n        { curr_lineno++; }
+
 <MULTIPLE_COMMENT>{MULTIPLE_COMMENT_START} { comment_start_symbol++;}
 
 <MULTIPLE_COMMENT>{MULTIPLE_COMMENT_END} { // Para cada simbolo encontrado diminui 
@@ -140,12 +142,10 @@ INT_CONST                   {DIGIT}+
 
  /*
   *  The multiple-character operators.
-  */
-                    
+  */              
 
 {CLASS}             { return CLASS;}
 {IN}                { return IN; }
-
 {DARROW}            { return DARROW; }
 {BLANK}             { /* ignore */ }
 {SINGLE_CHAR_TOKEN} { return yytext[0]; }
@@ -166,6 +166,12 @@ INT_CONST                   {DIGIT}+
 {OF}                { return OF; }
 {NOT}               { return NOT; }
 
+\n	 { curr_lineno++; }
+
+{INT_CONST}    {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return (INT_CONST);
+}     
 
 {TYPEID} { 
   yylval.symbol = inttable.add_string(yytext); return (TYPEID); 
@@ -190,8 +196,5 @@ INT_CONST                   {DIGIT}+
   *  \n \t \b \f, the result is c.
   *
   */
-
-{STR_CONST}{BEGIN(STRING_CONSTANT); string_start_symbol++; in_string = true; }
-
 
 %%
