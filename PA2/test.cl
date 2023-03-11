@@ -75,6 +75,16 @@ class CellularAutomaton inherits IO {
     };
 };
 
+class TestingStrings {
+    singleLineString : String = "Just a normal string 123 :)";
+
+    multilineString : String = "This is a \
+                                multiline string! \
+                                Cool!";
+
+    stringWithSpecialCharacters : String = "The \n should become a break line";
+};
+
 class Main {
     cells : CellularAutomaton;
    

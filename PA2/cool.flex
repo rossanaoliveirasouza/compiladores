@@ -90,6 +90,8 @@ BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
 BOOL_CONST_TRUE             t[Rr][Uu][Ee]
 INT_CONST                   [0-9]+
 
+STRING_CONSTANT             "\"".*(\\\n.*)*.*"\""
+
 %%
 
  /*
@@ -165,6 +167,14 @@ INT_CONST                   [0-9]+
 {NEW}               { return NEW; }
 {OF}                { return OF; }
 {NOT}               { return NOT; }
+
+{STRING_CONSTANT}   { return STR_CONST; }
+
+
+\\n                 { printf("\n"); }
+\\t                 { printf("\t"); }
+\\b                 { printf("\b"); }
+\\f                 { printf("\f"); }
 
 \n	 { curr_lineno++; }
 
