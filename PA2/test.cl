@@ -75,6 +75,11 @@ class CellularAutomaton inherits IO {
     };
 };
 
+class MoreTests {
+    multilineString : String = "This is \
+        a multiline string! Cool!";
+};
+
 class Main {
     cells : CellularAutomaton;
    

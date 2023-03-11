@@ -49,28 +49,54 @@ extern YYSTYPE cool_yylval;
  * Define names for regular expressions here.
  */
 
-DARROW              =>
-BLANK               (" "|\f|\r|\t|\v)
-SINGLE_CHAR_TOKEN   ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
-CLASS               [Cc][Ll][Aa][Ss][Ss]
-IN                  [Ii][Nn]  
-ELSE                [Ee][Ll][Ss][Ee]   
-FI                  [Ff][Ii]          
-IF                  [Ii][Ff]          
-INHERITS            [Ii][Nn][Hh][Ee][Rr][Ii][Tt][Ss] 
-ISVOID              [Ii][Ss][Vv][Oo][Ii][Dd]    
-LOOP                [Ll][Oo][Oo][Pp]   
-POOL                [Pp][Oo][Oo][Ll]   
-THEN                [Tt][Hh][Ee][Nn]   
-WHILE               [Ww][Hh][Ii][Ll][Ee]
-LET                 [Ll][Ee][Tt]  
-CASE                [Cc][Aa][Ss][Ee]
-ESAC                [Ee][Ss][Aa][Cc]   
-NEW                 [Nn][Ee][Ww]      
-OF                  [Oo][Ff]          
-NOT                 [Nn][Oo][Tt]      
-BOOL_CONST_FALSE    [Ff]alse
-BOOL_CONST_TRUE     [Tt]rue
+BLANK                                               " "|\f|\r|\t|\v
+
+BITWISE_OPERATORS                                   "~"
+COMPARISON_OPERATORS                                "<"|"="|">"
+ARITHMETIC_OPERATORS                                "+"|"-"|"/"|"*"
+
+TYPE_DECLARATION_OPERATOR                           ":"
+END_OF_STATEMENT_OPERATOR                           ";"
+
+SCOPE_DELIMITERS                                    "("|")"|"{"|"}"
+
+INTEGER_CONSTANT                                    [-+]?[0-9]+
+
+LETTER_ESCAPE                                       \a|\b|\c|\d|\e|\g|\h|\i|\j|\k|\l|\m|\o|\p|\q|\u|\v|\w|\x|\y|\z
+STRING_CONSTANT                                     ".*({LETTER_ESCAPE})*(\\\n.*)*.*"
+
+IDENTIFIER                                          [a-z_][a-zA-Z0-9_]*
+INT_TYPE                                            [Ii][Nn][Tt]
+BOOL_TYPE                                           [Bb][Oo][Oo][Ll]
+OBJECT_TYPE                                         [Oo][Bb][Jj][Ee][Cc][Tt]
+STRING_TYPE                                         [Ss][Tt][Rr][Ii][Nn][Gg]
+SELF_TYPE                                           SELF_TYPE
+TYPE_ID                                             {INT_TYPE}|{BOOL_TYPE}|{OBJECT_TYPE}|{STRING_TYPE}|{SELF_TYPE}
+
+SELF_KEYWORD                                        self
+
+SINGLE_CHAR_TOKEN                                   ("."|","|"@")
+CLASS                                               [Cc][Ll][Aa][Ss][Ss]
+IN                                                  [Ii][Nn]  
+ELSE                                                [Ee][Ll][Ss][Ee]   
+FI                                                  [Ff][Ii]          
+IF                                                  [Ii][Ff]          
+INHERITS                                            [Ii][Nn][Hh][Ee][Rr][Ii][Tt][Ss] 
+ISVOID                                              [Ii][Ss][Vv][Oo][Ii][Dd]    
+LOOP                                                [Ll][Oo][Oo][Pp]   
+POOL                                                [Pp][Oo][Oo][Ll]   
+THEN                                                [Tt][Hh][Ee][Nn]   
+WHILE                                               [Ww][Hh][Ii][Ll][Ee]
+LET                                                 [Ll][Ee][Tt]  
+CASE                                                [Cc][Aa][Ss][Ee]
+ESAC                                                [Ee][Ss][Aa][Cc]   
+NEW                                                 [Nn][Ee][Ww]      
+OF                                                  [Oo][Ff]          
+NOT                                                 [Nn][Oo][Tt]      
+
+BOOL_CONST                                          ([Ff]alse|[Tt]rue)
+
+DARROW                                              =>
 
 %%
 
@@ -84,11 +110,11 @@ BOOL_CONST_TRUE     [Tt]rue
   */
                     
 
-{CLASS}             { return CLASS;}
+{BLANK}             { /* ignore */ }
+
+{CLASS}             { return CLASS; }
 {IN}                { return IN; }
 {DARROW}            { return DARROW; }
-{BLANK}             { /* ignore */ }
-{SINGLE_CHAR_TOKEN} { return yytext[0]; }
 {IN}                { return IN; }
 {ELSE}              { return ELSE; }
 {FI}                { return FI; }
@@ -105,10 +131,15 @@ BOOL_CONST_TRUE     [Tt]rue
 {NEW}               { return NEW; }
 {OF}                { return OF; }
 {NOT}               { return NOT; }
-{BOOL_CONST_FALSE}  { return (BOOL_CONST); }
-{BOOL_CONST_TRUE}  { return (BOOL_CONST); }
 
+{LETTER_ESCAPE}     { printf("escape"); }
 
+{BOOL_CONST}        { return BOOL_CONST; }
+{STRING_CONSTANT}   { return STR_CONST; }
+{INTEGER_CONSTANT}  { return INT_CONST; }
+
+{TYPE_ID}           { return TYPEID; }
+{IDENTIFIER}        { return OBJECTID; }
 
 
  /*
