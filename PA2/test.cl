@@ -85,6 +85,13 @@ class TestingStrings {
     stringWithSpecialCharacters : String = "The \n should become a break line";
 };
 
+class ArithmeticOperations {
+    foo : Int = 10 * 10;
+    bar : Int = 10 / 10;
+    baz : Int = 10 + 10;
+    bla : Int = 10 - 10;
+};
+
 class Main {
     cells : CellularAutomaton;
    

@@ -65,7 +65,7 @@ MULTIPLE_COMMENT_START      "(*"
 MULTIPLE_COMMENT_END        "*)"
 INLINE_COMMENT_TOKEN        "--"
 BLANK                       (" "|\f|\r|\t|\v)
-OPERATOR                    ("+"|"-"|"*"|"/")
+ARITHMETIC_OPERATORS        ("+"|"-"|"*"|"/")
 SINGLE_CHAR_TOKEN           ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
 TYPEID                      [A-Z][a-zA-Z0-9_]*
 OBJECTID                    [a-z][a-zA-Z0-9_]*
@@ -146,35 +146,37 @@ STRING_CONSTANT             "\"".*(\\\n.*)*.*"\""
   *  The multiple-character operators.
   */              
 
-{CLASS}             { return CLASS;}
-{IN}                { return IN; }
-{DARROW}            { return DARROW; }
-{BLANK}             { /* ignore */ }
-{SINGLE_CHAR_TOKEN} { return yytext[0]; }
-{IN}                { return IN; }
-{ELSE}              { return ELSE; }
-{FI}                { return FI; }
-{IF}                { return IF; }
-{INHERITS}          { return INHERITS; }
-{ISVOID}            { return ISVOID; }
-{LET}               { return LET; }
-{LOOP}              { return LOOP; }
-{POOL}              { return POOL; }
-{THEN}              { return THEN; }
-{WHILE}             { return WHILE; }
-{CASE}              { return CASE; }
-{ESAC}              { return ESAC; }
-{NEW}               { return NEW; }
-{OF}                { return OF; }
-{NOT}               { return NOT; }
+{CLASS}                     { return CLASS;}
+{IN}                        { return IN; }
+{DARROW}                    { return DARROW; }
+{BLANK}                     { /* ignore */ }
+{SINGLE_CHAR_TOKEN}         { return yytext[0]; }
+{IN}                        { return IN; }
+{ELSE}                      { return ELSE; }
+{FI}                        { return FI; }
+{IF}                        { return IF; }
+{INHERITS}                  { return INHERITS; }
+{ISVOID}                    { return ISVOID; }
+{LET}                       { return LET; }
+{LOOP}                      { return LOOP; }
+{POOL}                      { return POOL; }
+{THEN}                      { return THEN; }
+{WHILE}                     { return WHILE; }
+{CASE}                      { return CASE; }
+{ESAC}                      { return ESAC; }
+{NEW}                       { return NEW; }
+{OF}                        { return OF; }
+{NOT}                       { return NOT; }
 
-{STRING_CONSTANT}   { return STR_CONST; }
+{ARITHMETIC_OPERATORS}      { return yytext[0]; }
+
+{STRING_CONSTANT}           { return STR_CONST; }
 
 
-\\n                 { printf("\n"); }
-\\t                 { printf("\t"); }
-\\b                 { printf("\b"); }
-\\f                 { printf("\f"); }
+\\n                         { printf("\n"); }
+\\t                         { printf("\t"); }
+\\b                         { printf("\b"); }
+\\f                         { printf("\f"); }
 
 \n	 { curr_lineno++; }
 
