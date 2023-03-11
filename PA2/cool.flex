@@ -43,15 +43,32 @@ extern YYSTYPE cool_yylval;
  *  Add Your own definitions here
  */
 
+int comment_start_symbol= 0;
+bool in_nested_comment = false;
+
+bool in_string = false;
+
+
 %}
 
 /*
  * Define names for regular expressions here.
  */
 
+%x MULTIPLE_COMMENT
+%x INLINE_COMMENT
+
 DARROW              =>
+LE                  <=
+ASSIGN              <-
+MULTIPLE_COMMENT_START  "(*"
+MULTIPLE_COMMENT_END    "*)"
+INLINE_COMMENT_TOKEN          "--"
 BLANK               (" "|\f|\r|\t|\v)
+OPERATOR            ("+"|"-"|"*"|"/")
 SINGLE_CHAR_TOKEN   ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
+TYPEID              [A-Z][a-zA-Z0-9_]*
+OBJECTID            [a-z][a-zA-Z0-9_]*
 CLASS               [Cc][Ll][Aa][Ss][Ss]
 IN                  [Ii][Nn]  
 ELSE                [Ee][Ll][Ss][Ee]   
@@ -69,14 +86,66 @@ ESAC                [Ee][Ss][Aa][Cc]
 NEW                 [Nn][Ee][Ww]      
 OF                  [Oo][Ff]          
 NOT                 [Nn][Oo][Tt]      
-BOOL_CONST_FALSE    [Ff]alse
-BOOL_CONST_TRUE     [Tt]rue
+BOOL_CONST_FALSE    f[Aa][Ll][Ss][Ee]
+BOOL_CONST_TRUE     t[Rr][Uu][Ee]
+
+EOF                 [\r\n]+$
+
+
+
 
 %%
 
  /*
   *  Nested comments
   */
+
+{MULTIPLE_COMMENT_START} {BEGIN(MULTIPLE_COMMENT); comment_start_symbol++; in_nested_comment=true;}
+<MULTIPLE_COMMENT>{MULTIPLE_COMMENT_START} { comment_start_symbol++;}
+
+<MULTIPLE_COMMENT>{MULTIPLE_COMMENT_END} { // Para cada simbolo encontrado diminui 
+  comment_start_symbol--;
+
+
+  if (comment_start_symbol == 0) {
+    in_nested_comment = false;
+    BEGIN(INITIAL);
+  }
+
+  if(comment_start_symbol < 0){
+    cool_yylval.error_msg = "final de comentario inesperado!";
+	  return (ERROR);
+  }
+
+
+}
+
+<MULTIPLE_COMMENT><<EOF>> {
+  BEGIN(INITIAL);
+  cool_yylval.error_msg = "syntax error at or near ERROR = EOF in comment";
+	return (ERROR);
+}
+
+<MULTIPLE_COMMENT>. {}
+
+{MULTIPLE_COMMENT_END} {
+  if(!in_nested_comment)
+  {
+    cool_yylval.error_msg = "final de comentario inesperado!";
+	  return (ERROR);
+  }
+}
+
+
+
+
+ /*
+  *  inline comment
+  */
+
+{INLINE_COMMENT_TOKEN} {BEGIN(INLINE_COMMENT);}
+<INLINE_COMMENT>.      {}
+<INLINE_COMMENT>\n     { curr_lineno++; BEGIN(INITIAL); }
 
 
  /*
@@ -86,6 +155,7 @@ BOOL_CONST_TRUE     [Tt]rue
 
 {CLASS}             { return CLASS;}
 {IN}                { return IN; }
+
 {DARROW}            { return DARROW; }
 {BLANK}             { /* ignore */ }
 {SINGLE_CHAR_TOKEN} { return yytext[0]; }
@@ -107,6 +177,11 @@ BOOL_CONST_TRUE     [Tt]rue
 {NOT}               { return NOT; }
 {BOOL_CONST_FALSE}  { return (BOOL_CONST); }
 {BOOL_CONST_TRUE}  { return (BOOL_CONST); }
+
+{TYPEID}  { 
+  yylval.symbol = inttable.add_string(yytext); return (TYPEID); 
+  
+  }
 
 
 
