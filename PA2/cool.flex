@@ -1,4 +1,9 @@
 /*
+Trabalho apresentado à disciplina de compiladores do Curso de Ciência da Computação da PUC - Minas
+Alunos: Rossana Souza, Lucas Milard, Natan Alexandre, Luam Gonçalves
+====================================================================
+*/
+/*
  *  The scanner definition for COOL.
  */
 
@@ -98,11 +103,11 @@ INT_CONST                   [0-9]+
 
 {MULTIPLE_COMMENT_START} {BEGIN(MULTIPLE_COMMENT); comment_start_symbol++; in_nested_comment=true;}
 
-<MULTIPLE_COMMENT>\n        { curr_lineno++; }
+<MULTIPLE_COMMENT>\n  { curr_lineno++; } // For each line found increases the value of curr_lineno
 
 <MULTIPLE_COMMENT>{MULTIPLE_COMMENT_START} { comment_start_symbol++;}
 
-<MULTIPLE_COMMENT>{MULTIPLE_COMMENT_END} { // Para cada simbolo encontrado diminui 
+<MULTIPLE_COMMENT>{MULTIPLE_COMMENT_END} { // For each symbol found decreases the value of comment_start_symbol
   comment_start_symbol--;
 
   if (comment_start_symbol == 0) {
@@ -111,7 +116,7 @@ INT_CONST                   [0-9]+
   }
 
   if(comment_start_symbol < 0){
-    cool_yylval.error_msg = "final de comentario inesperado!";
+    cool_yylval.error_msg = "END OF COMMENTsymbol found unexpectedly!";
 	  return (ERROR);
   }
 }
@@ -127,7 +132,7 @@ INT_CONST                   [0-9]+
 {MULTIPLE_COMMENT_END} {
   if(!in_nested_comment)
   {
-    cool_yylval.error_msg = "final de comentario inesperado!";
+    cool_yylval.error_msg = "END OF COMMENTsymbol found unexpectedly!";
 	  return (ERROR);
   }
 }
@@ -138,7 +143,7 @@ INT_CONST                   [0-9]+
 
 {INLINE_COMMENT_TOKEN} {BEGIN(INLINE_COMMENT);}
 <INLINE_COMMENT>.      {}
-<INLINE_COMMENT>\n     { curr_lineno++; BEGIN(INITIAL); }
+<INLINE_COMMENT>\n     { curr_lineno++; BEGIN(INITIAL); } // Also increases the value of curr_lineno for each single line comment found
 
  /*
   *  The multiple-character operators.
@@ -169,7 +174,7 @@ INT_CONST                   [0-9]+
 \n	 { curr_lineno++; }
 
 {INT_CONST}    {
-  cool_yylval.symbol = idtable.add_string(yytext);
+  yylval.symbol = inttable.add_string(yytext);
   return (INT_CONST);
 }     
 
