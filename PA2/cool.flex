@@ -223,6 +223,17 @@ OBJECTID                    ("self"|[a-z]([a-zA-Z0-9_])*)
   stringConstant[stringConstantNextCharIndex++] = '\b';
 }
 
+<STRING_CONSTANT>\\.{} { // Treat generic Escape as different from null
+    if (stringConstantNextCharIndex + 1 < MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
+      stringConstant[stringConstantNextCharIndex] = yytext[1]; 
+    } 
+    else {
+      cool_yylval.error_msg = "String constant too long";
+      resetStringConstant();
+      return (ERROR); 
+    }
+}
+
 <STRING_CONSTANT>. {
   if (stringConstantNextCharIndex >= MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
     cool_yylval.error_msg = "String constant too long";
@@ -241,7 +252,7 @@ OBJECTID                    ("self"|[a-z]([a-zA-Z0-9_])*)
 
 {BLANK}                     { /* ignore */ }
 
-{ASSIGN}	                  {return ASSIGN;}
+{ASSIGN}	                  { return ASSIGN;}
 {CLASS}                     { return CLASS;}
 {IN}                        { return IN; }
 {DARROW}                    { return DARROW; }
@@ -263,6 +274,7 @@ OBJECTID                    ("self"|[a-z]([a-zA-Z0-9_])*)
 {NEW}                       { return NEW; }
 {OF}                        { return OF; }
 {NOT}                       { return NOT; }
+{LE}                        { return LE; }
 
 
  /*

@@ -57,6 +57,7 @@ class A {
             fi
    };
 
+
    method5(num : Int) : E {  -- factorial
       (let x : Int <- 1 in
 	 {
