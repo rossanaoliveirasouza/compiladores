@@ -223,7 +223,7 @@ OBJECTID                    ("self"|[a-z]([a-zA-Z0-9_])*)
   stringConstant[stringConstantNextCharIndex++] = '\b';
 }
 
-<STRING_CONSTANT>\\.{} { // Treat generic Escape as different from null
+<STRING_CONSTANT>"\\"[^\0] { // Treat generic Escape as different from null
     if (stringConstantNextCharIndex + 1 < MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
       stringConstant[stringConstantNextCharIndex] = yytext[1]; 
     } 
