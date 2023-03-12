@@ -156,9 +156,11 @@ As palavras chaves ou palavras reservadas são case insensitive na linguagem coo
 3. Testes com arquivo que possuem dependência entre si também foram realizados como o caso do atoi_test.cl que necessita do arquivo atoi.cl. Nesses testes a compilação funcionou como o esperado utilizando o script mycoolc.
 
 ./mycoolc tests/atoi_test.cl tests/atoi.cl
-/var/tmp/cool/bin/spim -file tests/atoi_test.s
 
 4. Todos os arquivos de teste da pasta "tests" foram testados e compilados corretamente. 
+5. O trabalho extra PA1 também foi utilizado como teste para o PA2. Para realizar este teste é necessário rodar:
+
+./mycool PA1/stack.cl PA1/atoi.cl
 
 *** TYPEID e OBJECTID:**
 
