@@ -10,7 +10,7 @@
 #define YY_FLEX_MINOR_VERSION 5
 
 #include <stdio.h>
-
+#include <errno.h>
 
 /* cfront 1.2 defines "c_plusplus" instead of "__cplusplus" */
 #ifdef c_plusplus
@@ -23,7 +23,9 @@
 #ifdef __cplusplus
 
 #include <stdlib.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 /* Use prototypes in function declarations. */
 #define YY_USE_PROTOS
@@ -62,6 +64,7 @@
 #else
 #define YY_PROTO(proto) ()
 #endif
+
 
 /* Returned upon end-of-file. */
 #define YY_NULL 0
@@ -292,24 +295,24 @@ static void yy_fatal_error YY_PROTO(( yyconst char msg[] ));
 static yyconst short int yy_accept[174] =
     {   0,
         0,    0,    0,    0,    0,    0,    0,    0,   50,   46,
-       23,   42,   10,   24,   24,   41,   41,   41,   43,   24,
+       20,   42,   10,   25,   25,   24,   24,   24,   43,   25,
        44,   44,   44,   44,   44,   44,   44,   44,   44,   44,
        44,   45,   45,   45,   45,   45,   45,   45,   45,   45,
        45,   45,    5,    2,    5,    5,    8,    9,   19,   13,
-       11,   19,   19,   14,    1,    6,    7,   43,   22,   44,
-       44,   44,   44,   44,   27,   28,   21,   44,   44,   44,
-       44,   44,   39,   44,   44,   44,   45,   45,   45,   45,
-       45,   45,   27,   28,   21,   45,   45,   45,   45,   45,
-       39,   45,   45,   45,   45,    3,    4,    0,   15,   18,
+       11,   19,   19,   14,    1,    6,    7,   43,   23,   44,
+       44,   44,   44,   44,   28,   29,   22,   44,   44,   44,
+       44,   44,   40,   44,   44,   44,   45,   45,   45,   45,
+       45,   45,   28,   29,   22,   45,   45,   45,   45,   45,
+       40,   45,   45,   45,   45,    3,    4,    0,   15,   18,
 
-       17,   16,   44,   44,   44,   44,   44,   44,   31,   44,
-       38,   40,   44,   44,   44,   45,   45,   45,   45,   45,
-       45,   45,   31,   45,   38,   40,   45,   45,   45,   45,
-        0,   36,   44,   26,   37,   44,   44,   32,   33,   34,
-       44,   36,   45,   26,   37,   45,   45,   45,   32,   33,
-       34,   45,   45,    0,   20,   44,   44,   35,   20,   45,
-       45,   45,   35,   12,   44,   30,   45,   30,   44,   45,
-       29,   29,    0
+       17,   16,   44,   44,   44,   44,   44,   44,   32,   44,
+       39,   41,   44,   44,   44,   45,   45,   45,   45,   45,
+       45,   45,   32,   45,   39,   41,   45,   45,   45,   45,
+        0,   37,   44,   27,   38,   44,   44,   33,   34,   35,
+       44,   37,   45,   27,   38,   45,   45,   45,   33,   34,
+       35,   45,   45,    0,   21,   44,   44,   36,   21,   45,
+       45,   45,   36,   12,   44,   31,   45,   31,   44,   45,
+       30,   30,    0
     } ;
 
 static yyconst int yy_ec[256] =
@@ -501,11 +504,11 @@ int yy_flex_debug = 1;
 
 static yyconst short int yy_rule_linenum[49] =
     {   0,
-      111,  113,  115,  117,  137,  139,  151,  152,  153,  163,
-      169,  182,  190,  202,  210,  217,  221,  225,  229,  245,
-      246,  247,  248,  249,  250,  251,  252,  253,  254,  255,
-      256,  257,  258,  259,  260,  261,  262,  263,  264,  265,
-      267,  269,  273,  278,  283,  288,  298,  299
+      111,  113,  115,  117,  137,  139,  151,  152,  153,  164,
+      170,  181,  189,  199,  207,  212,  216,  220,  224,  240,
+      242,  243,  244,  245,  246,  247,  248,  249,  250,  251,
+      252,  253,  254,  255,  256,  257,  258,  259,  260,  261,
+      262,  265,  269,  274,  279,  284,  294,  295
     } ;
 
 /* The intent behind this definition is that it'll catch
@@ -588,7 +591,7 @@ void resetStringConstant() {
 
 #define STRING_CONSTANT 3
 
-#line 592 "cool-lex.cc"
+#line 595 "cool-lex.cc"
 
 /* Macros after this point can all be overridden by user definitions in
  * section 1.
@@ -688,9 +691,20 @@ YY_MALLOC_DECL
 			YY_FATAL_ERROR( "input in flex scanner failed" ); \
 		result = n; \
 		} \
-	else if ( ((result = fread( buf, 1, max_size, yyin )) == 0) \
-		  && ferror( yyin ) ) \
-		YY_FATAL_ERROR( "input in flex scanner failed" );
+	else \
+		{ \
+		errno=0; \
+		while ( (result = fread(buf, 1, max_size, yyin))==0 && ferror(yyin)) \
+			{ \
+			if( errno != EINTR) \
+				{ \
+				YY_FATAL_ERROR( "input in flex scanner failed" ); \
+				break; \
+				} \
+			errno=0; \
+			clearerr(yyin); \
+			} \
+		}
 #endif
 
 /* No semi-colon after return; correct usage is to write "yyterminate();" -
@@ -746,7 +760,7 @@ YY_DECL
   *  Nested comments
   */
 
-#line 750 "cool-lex.cc"
+#line 764 "cool-lex.cc"
 
 	if ( yy_init )
 		{
@@ -852,7 +866,7 @@ YY_RULE_SETUP
 case 2:
 YY_RULE_SETUP
 #line 113 "cool.flex"
-{ curr_lineno++; }
+{ curr_lineno++; } // For each line found increases the value of curr_lineno
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
@@ -862,7 +876,7 @@ YY_RULE_SETUP
 case 4:
 YY_RULE_SETUP
 #line 117 "cool.flex"
-{ // Para cada simbolo encontrado diminui 
+{ // For each symbol found decreases the value of comment_start_symbol
   comment_start_symbol--;
 
   if (comment_start_symbol == 0) {
@@ -871,7 +885,7 @@ YY_RULE_SETUP
   }
 
   if(comment_start_symbol < 0){
-    cool_yylval.error_msg = "final de comentario inesperado!";
+    cool_yylval.error_msg = "END OF COMMENT symbol found unexpectedly!";
 	  return (ERROR);
   }
 }
@@ -895,7 +909,7 @@ YY_RULE_SETUP
 {
   if(!in_nested_comment)
   {
-    cool_yylval.error_msg = "final de comentario inesperado!";
+    cool_yylval.error_msg = "END OF COMMENT symbol found unexpectedly!";
 	  return (ERROR);
   }
 }
@@ -916,7 +930,7 @@ YY_RULE_SETUP
 case 9:
 YY_RULE_SETUP
 #line 153 "cool.flex"
-{ curr_lineno++; BEGIN(INITIAL); }
+{ curr_lineno++; BEGIN(INITIAL); } // Also increases the value of curr_lineno for each single line comment found
 	YY_BREAK
 /*
   *  String constants (C syntax)
@@ -926,7 +940,7 @@ YY_RULE_SETUP
   */
 case 10:
 YY_RULE_SETUP
-#line 163 "cool.flex"
+#line 164 "cool.flex"
 {
   BEGIN(STRING_CONSTANT);
 
@@ -935,11 +949,9 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 169 "cool.flex"
+#line 170 "cool.flex"
 {
   BEGIN(INITIAL);
-
-  printf("---%s---", stringConstant);
   
   stringConstant[stringConstantNextCharIndex] = '\0';
   cool_yylval.symbol = stringtable.add_string(stringConstant);
@@ -951,7 +963,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 182 "cool.flex"
+#line 181 "cool.flex"
 {
   cool_yylval.error_msg = "EOF in string constant";
 
@@ -962,11 +974,9 @@ YY_RULE_SETUP
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 190 "cool.flex"
+#line 189 "cool.flex"
 {
   curr_lineno++;
-
-  printf("matched REAL line break");
 
   cool_yylval.error_msg = "Unterminated string constant";
 
@@ -977,7 +987,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 202 "cool.flex"
+#line 199 "cool.flex"
 {
   cool_yylval.error_msg = "String contains null character";
 
@@ -988,38 +998,36 @@ YY_RULE_SETUP
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 210 "cool.flex"
+#line 207 "cool.flex"
 {
-  printf("matched line break");
-
   curr_lineno++;
   stringConstant[stringConstantNextCharIndex++] = '\n';
 }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 217 "cool.flex"
+#line 212 "cool.flex"
 {
   stringConstant[stringConstantNextCharIndex++] = '\t';
 }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 221 "cool.flex"
+#line 216 "cool.flex"
 {
   stringConstant[stringConstantNextCharIndex++] = '\f';
 }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 225 "cool.flex"
+#line 220 "cool.flex"
 {
   stringConstant[stringConstantNextCharIndex++] = '\b';
 }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 229 "cool.flex"
+#line 224 "cool.flex"
 {
   if (stringConstantNextCharIndex >= MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
     cool_yylval.error_msg = "String constant too long";
@@ -1037,124 +1045,124 @@ YY_RULE_SETUP
   */              
 case 20:
 YY_RULE_SETUP
-#line 245 "cool.flex"
-{ return CLASS;}
+#line 240 "cool.flex"
+{ /* ignore */ }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 246 "cool.flex"
-{ return IN; }
+#line 242 "cool.flex"
+{ return CLASS;}
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 247 "cool.flex"
-{ return DARROW; }
+#line 243 "cool.flex"
+{ return IN; }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 248 "cool.flex"
-{ /* ignore */ }
+#line 244 "cool.flex"
+{ return DARROW; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 249 "cool.flex"
+#line 245 "cool.flex"
 { return yytext[0]; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 250 "cool.flex"
-{ return IN; }
+#line 246 "cool.flex"
+{ return yytext[0]; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 251 "cool.flex"
-{ return ELSE; }
+#line 247 "cool.flex"
+{ return IN; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 252 "cool.flex"
-{ return FI; }
+#line 248 "cool.flex"
+{ return ELSE; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 253 "cool.flex"
-{ return IF; }
+#line 249 "cool.flex"
+{ return FI; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 254 "cool.flex"
-{ return INHERITS; }
+#line 250 "cool.flex"
+{ return IF; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 255 "cool.flex"
-{ return ISVOID; }
+#line 251 "cool.flex"
+{ return INHERITS; }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 256 "cool.flex"
-{ return LET; }
+#line 252 "cool.flex"
+{ return ISVOID; }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 257 "cool.flex"
-{ return LOOP; }
+#line 253 "cool.flex"
+{ return LET; }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 258 "cool.flex"
-{ return POOL; }
+#line 254 "cool.flex"
+{ return LOOP; }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 259 "cool.flex"
-{ return THEN; }
+#line 255 "cool.flex"
+{ return POOL; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 260 "cool.flex"
-{ return WHILE; }
+#line 256 "cool.flex"
+{ return THEN; }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 261 "cool.flex"
-{ return CASE; }
+#line 257 "cool.flex"
+{ return WHILE; }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 262 "cool.flex"
-{ return ESAC; }
+#line 258 "cool.flex"
+{ return CASE; }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 263 "cool.flex"
-{ return NEW; }
+#line 259 "cool.flex"
+{ return ESAC; }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 264 "cool.flex"
-{ return OF; }
+#line 260 "cool.flex"
+{ return NEW; }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 265 "cool.flex"
-{ return NOT; }
+#line 261 "cool.flex"
+{ return OF; }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 267 "cool.flex"
-{ return yytext[0]; }
+#line 262 "cool.flex"
+{ return NOT; }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 269 "cool.flex"
+#line 265 "cool.flex"
 { 
   curr_lineno++;
 }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 273 "cool.flex"
+#line 269 "cool.flex"
 {
   cool_yylval.symbol = inttable.add_string(yytext);
   return (INT_CONST);
@@ -1162,7 +1170,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 278 "cool.flex"
+#line 274 "cool.flex"
 { 
   yylval.symbol = idtable.add_string(yytext);
   return (TYPEID); 
@@ -1170,7 +1178,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 283 "cool.flex"
+#line 279 "cool.flex"
 {
   cool_yylval.symbol = idtable.add_string(yytext);
   return (OBJECTID);
@@ -1178,7 +1186,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 288 "cool.flex"
+#line 284 "cool.flex"
 {
   cool_yylval.error_msg = yytext;
   return (ERROR);
@@ -1190,20 +1198,20 @@ YY_RULE_SETUP
   */
 case 47:
 YY_RULE_SETUP
-#line 298 "cool.flex"
+#line 294 "cool.flex"
 { return (BOOL_CONST); }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 299 "cool.flex"
+#line 295 "cool.flex"
 { return (BOOL_CONST); }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 302 "cool.flex"
+#line 298 "cool.flex"
 ECHO;
 	YY_BREAK
-#line 1207 "cool-lex.cc"
+#line 1215 "cool-lex.cc"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(INLINE_COMMENT):
 case YY_STATE_EOF(STRING_CONSTANT):
@@ -1769,9 +1777,13 @@ YY_BUFFER_STATE b;
 	}
 
 
+#ifndef _WIN32
+#include <unistd.h>
+#else
 #ifndef YY_ALWAYS_INTERACTIVE
 #ifndef YY_NEVER_INTERACTIVE
 extern int isatty YY_PROTO(( int ));
+#endif
 #endif
 #endif
 
@@ -2091,5 +2103,5 @@ int main()
 	return 0;
 	}
 #endif
-#line 302 "cool.flex"
+#line 298 "cool.flex"
 
