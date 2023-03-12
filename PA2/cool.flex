@@ -79,8 +79,9 @@ INLINE_COMMENT_TOKEN        "--"
 BLANK                       (" "|\f|\r|\t|\v)
 ARITHMETIC_OPERATORS        ("+"|"-"|"*"|"/")
 SINGLE_CHAR_TOKEN           ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
-TYPEID                      [A-Z][a-zA-Z0-9_]*
-OBJECTID                    [a-z][a-zA-Z0-9_]*
+BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
+BOOL_CONST_TRUE             t[Rr][Uu][Ee]
+INT_CONST                   [0-9]+
 CLASS                       [Cc][Ll][Aa][Ss][Ss]
 IN                          [Ii][Nn]  
 ELSE                        [Ee][Ll][Ss][Ee]   
@@ -97,10 +98,11 @@ CASE                        [Cc][Aa][Ss][Ee]
 ESAC                        [Ee][Ss][Aa][Cc]   
 NEW                         [Nn][Ee][Ww]      
 OF                          [Oo][Ff]          
-NOT                         [Nn][Oo][Tt]      
-BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
-BOOL_CONST_TRUE             t[Rr][Uu][Ee]
-INT_CONST                   [0-9]+
+NOT                         [Nn][Oo][Tt]
+
+TYPEID                      ("SELF_TYPE"|[A-Z]([a-zA-Z0-9_])*)
+OBJECTID                    ("self"|[a-z]([a-zA-Z0-9_])*)
+
 
 %%
 
@@ -239,11 +241,12 @@ INT_CONST                   [0-9]+
 
 {BLANK}                     { /* ignore */ }
 
+{ASSIGN}	                  {return ASSIGN;}
 {CLASS}                     { return CLASS;}
 {IN}                        { return IN; }
 {DARROW}                    { return DARROW; }
-{ARITHMETIC_OPERATORS}      { return yytext[0]; }
-{SINGLE_CHAR_TOKEN}         { return yytext[0]; }
+{ARITHMETIC_OPERATORS}      { return (int)yytext[0]; }
+{SINGLE_CHAR_TOKEN}         { return (int)yytext[0]; }
 {IN}                        { return IN; }
 {ELSE}                      { return ELSE; }
 {FI}                        { return FI; }
@@ -260,6 +263,22 @@ INT_CONST                   [0-9]+
 {NEW}                       { return NEW; }
 {OF}                        { return OF; }
 {NOT}                       { return NOT; }
+
+
+ /*
+  * Keywords are case-insensitive except for the values true and false,
+  * which must begin with a lower-case letter.
+  */
+
+
+{BOOL_CONST_FALSE}  { 
+	cool_yylval.boolean = false;
+  return (BOOL_CONST); }
+
+{BOOL_CONST_TRUE}  { 
+  cool_yylval.boolean = true;
+  return (BOOL_CONST); 
+}
 
 
 \n { 
@@ -286,13 +305,8 @@ INT_CONST                   [0-9]+
   return (ERROR);
 }
 
- /*
-  * Keywords are case-insensitive except for the values true and false,
-  * which must begin with a lower-case letter.
-  */
 
-{BOOL_CONST_FALSE}  { return (BOOL_CONST); }
-{BOOL_CONST_TRUE}  { return (BOOL_CONST); }
+
 
 
 %%
