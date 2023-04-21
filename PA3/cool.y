@@ -4,7 +4,7 @@
  *
  */
 %{
-#include <iostream.h>
+#include <iostream>
 #include "cool-tree.h"
 #include "stringtab.h"
 #include "utilities.h"
@@ -19,6 +19,7 @@ extern int yylex();           /*  the entry point to the lexer  */
 
 Program ast_root;	      /* the result of the parse  */
 Classes parse_results;        /* for use in semantic analysis */
+Features features;
 int omerrs = 0;               /* number of errors in lexing and parsing */
 %}
 
@@ -39,6 +40,51 @@ int omerrs = 0;               /* number of errors in lexing and parsing */
   Expressions expressions;
   char *error_msg;
 }
+
+/* -------------------- Definitions -------------------- *
+*  Program_class
+*     program_class
+* 
+*  Class__class
+*     class_
+*
+*  Feature_class
+*     method
+*     attr
+*
+*  Formal_class
+*     formal
+*
+*  Case_class
+*     branch_class
+*
+*  Expression_class
+*     assign
+*     static_dispatch
+*     dispatch
+*     cond
+*     loop
+*     typcase
+*     block
+*     let
+*     plus
+*     sub
+*     mul
+*     divide
+*     neg
+*     lt
+*     eq
+*     leq
+*     comp
+*     int_const
+*     bool_const
+*     string_const
+*     new_
+*     isvoid
+*     no_expr
+*     object
+* -------------------- End Definitions -------------------- */
+
 
 /* 
    Declare the terminals; a few have types for associated lexemes.
@@ -72,7 +118,11 @@ int omerrs = 0;               /* number of errors in lexing and parsing */
 %type <class_> class
 
 /* You will want to change the following line. */
-%type <features> dummy_feature_list
+%type <features> feature_list
+%type <feature> feature
+%type <feature> attribute
+
+%type <expression> arithmetic_expression
 
 /* Precedence declarations go here. */
 
@@ -81,7 +131,7 @@ int omerrs = 0;               /* number of errors in lexing and parsing */
 /* 
    Save the root of the abstract syntax tree in a global variable.
 */
-program	: class_list	{ ast_root = program($1); }
+program	: class_list { ast_root = program($1); }
         ;
 
 class_list
@@ -94,17 +144,91 @@ class_list
 	;
 
 /* If no parent is specified, the class inherits from the Object class. */
-class	: CLASS TYPEID '{' dummy_feature_list '}' ';'
+class	: CLASS TYPEID '{' feature_list '}' ';'
 		{ $$ = class_($2,idtable.add_string("Object"),$4,
 			      stringtable.add_string(curr_filename)); }
-	| CLASS TYPEID INHERITS TYPEID '{' dummy_feature_list '}' ';'
+	| CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
 		{ $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
 	;
 
 /* Feature list may be empty, but no empty features in list. */
-dummy_feature_list:		/* empty */
-                {  $$ = nil_Features(); }
+feature_list : 
+    feature
+    { 
+        $$ = single_Features($1);
+        features = $$;
+    }
+    |
+    feature_list feature 
+    { 
+        $$ = append_Features($1, single_Features($2)); 
+        features = $$; 
+    }
+    ;
 
+feature : 
+    attribute
+    ;
+
+attribute :
+    OBJECTID ':' TYPEID ';' 
+    { 
+        dump_Symbol(cout, 2, $1); 
+        dump_Symbol(cout, 2, $3); 
+    }
+    |
+    OBJECTID ':' TYPEID ASSIGN ';'
+    {
+        dump_Symbol(cout, 2, $1); 
+        dump_Symbol(cout, 2, $3); 
+    }
+    ;
+
+arithmetic_expression :
+    INT_CONST
+    |
+    OBJECTID 
+    |
+    arithmetic_expression '+' arithmetic_expression
+    { $$ = $1 + $3; }
+    |
+    arithmetic_expression '-' arithmetic_expression
+    { $$ = $1 - $3; }
+    |
+    arithmetic_expression '*' arithmetic_expression
+    { $$ = $1 * $3; }
+    |
+    arithmetic_expression '/' arithmetic_expression
+    { $$ = $1 / $3; }
+    ;
+
+/*
+*  Expression_class
+*     assign
+*     static_dispatch
+*     dispatch
+*     cond
+*     loop
+*     typcase
+*     block
+*     let
+*     plus
+*     sub
+*     mul
+*     divide
+*     neg
+*     lt
+*     eq
+*     leq
+*     comp
+*     int_const
+*     bool_const
+*     string_const
+*     new_
+*     isvoid
+*     no_expr
+*     object
+*/
 
 /* end of grammar */
 %%
