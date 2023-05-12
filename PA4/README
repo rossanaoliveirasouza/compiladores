@@ -180,3 +180,21 @@ Instructions
 
 Write-up for PA4
 ----------------
+
+Os métodos `install_user_classes` e `build_inheritance_graph` são parte da classe `ClassTable` e têm a finalidade de lidar com a instalação das classes definidas pelo usuário e a construção do grafo de herança, respectivamente.
+
+O método `install_user_classes` recebe um objeto `Classes` contendo as definições das classes e realiza as seguintes etapas:
+- Verifica se uma classe é do tipo `SELF_TYPE` e emite um erro caso seja.
+- Verifica se a classe já foi definida anteriormente e emite um erro caso tenha.
+- Adiciona a classe ao `class_bucket` da `ClassTable`.
+
+Já o método `build_inheritance_graph` constrói o grafo de herança e segue estas etapas:
+- Percorre todas as classes no `class_bucket`.
+- Armazena a relação de herança entre a classe atual e sua classe pai no `parent_type_of`.
+- Verifica se a classe pai é do tipo `SELF_TYPE` e emite um erro caso seja.
+- Verifica se a classe pai está definida no `class_bucket` e emite um erro caso não esteja.
+- Adiciona a classe atual ao vetor correspondente à classe pai no `inheritance_graph`.
+
+Ambos os métodos retornam `true` se suas operações forem concluídas com sucesso, ou `false` caso ocorra algum erro durante o processo.
+
+Esses métodos desempenham um papel fundamental na organização das classes definidas pelo usuário e na construção da estrutura de herança, permitindo a análise semântica adequada do programa.

@@ -228,45 +228,35 @@ bool ClassTable::install_user_classes(Classes classes) {
 }
 
 bool ClassTable::build_inheritance_graph() {
-
-    for (auto const& x : this->class_bucket)
-    {
-        Symbol class_name = x.first;
+    for (const auto& x : class_bucket) {
+        const Symbol class_name = x.first;
 
         if (class_name == Object)
             continue;
 
-        Class_ class_definition = x.second;
-        Symbol class_parent_name = class_definition->get_parent_name(); // a onde vem essa praga de definição
+        const Class_ class_definition = x.second;
+        const Symbol class_parent_name = class_definition->get_parent();
 
-        parent_type_of[class_name] = class_parent_name; // mesma coisa parent_type_of deve vir no inferno 
+        parent_type_of[class_name] = class_parent_name;
 
-        if(class_parent_name == SELF_TYPE)
-        {
-            this->semant_error(class_definition)
-                << "Class "
-                << class_definition->get_name()
-                << " cannot inherit class "
-                << class_parent_name
-                << ".\n";
-            return false;
-        }
-        
-        if (this->class_bucket.find(class_parent_name) == this->class_bucket.end())
-        {
-            semant_error(x.second) << "Class "
-                << class_name 
-                << " inherits from an undefined class "
-                << class_parent_name
+        if (class_parent_name == SELF_TYPE) {
+            semant_error(class_definition)
+                << "Class " << class_definition->get_name()
+                << " cannot inherit class " << class_parent_name
                 << ".\n";
             return false;
         }
 
-        if (this->inheritance_graph.find(class_parent_name) == this->inheritance_graph.end()) 
-            this->inheritance_graph[class_parent_name] = std::vector<Symbol>();
-    
-        this->inheritance_graph[class_parent_name].push_back(class_name);
-    } 
+        const auto parent_iter = class_bucket.find(class_parent_name);
+        if (parent_iter == class_bucket.end()) {
+            semant_error(class_definition) << "Class " << class_name
+                << " inherits from an undefined class " << class_parent_name
+                << ".\n";
+            return false;
+        }
+
+        inheritance_graph[parent_iter->first].push_back(class_name);
+    }
     return true;
 }
 
@@ -331,10 +321,10 @@ void program_class::semant()
 	    exit(1);
     }
 
-    if(!classtable->build_inheritance_graph()){
-         cerr << "Compilation halted due to static semantic errors." << endl;
-	    exit(1);
-    }
+    // if(!classtable->build_inheritance_graph()){
+    //      cerr << "Compilation halted due to static semantic errors." << endl;
+	//     exit(1);
+    // }
 
     if (classtable->errors()) {
 	cerr << "Compilation halted due to static semantic errors." << endl;
