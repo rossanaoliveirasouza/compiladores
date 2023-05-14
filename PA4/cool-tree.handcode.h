@@ -58,6 +58,7 @@ void dump_with_types(ostream&, int);
 virtual Symbol get_name() = 0;  	\
 virtual Symbol get_parent() = 0;    	\
 virtual Symbol get_filename() = 0;      \
+virtual Features get_features() = 0;     \
 virtual void dump_with_types(ostream&,int) = 0; 
 
 
@@ -65,45 +66,75 @@ virtual void dump_with_types(ostream&,int) = 0;
 Symbol get_name()   { return name; }		       \
 Symbol get_parent() { return parent; }     	       \
 Symbol get_filename() { return filename; }             \
+Features get_features()  { return features; }     \
 void dump_with_types(ostream&,int);                    
 
 
-#define Feature_EXTRAS                                        \
-virtual void dump_with_types(ostream&,int) = 0; 
+#define Feature_EXTRAS                          \
+virtual bool is_method() = 0;               	\
+virtual bool is_attr() = 0;                  	\
+virtual void dump_with_types(ostream&,int) = 0; 			
 
 
 #define Feature_SHARED_EXTRAS                                       \
 void dump_with_types(ostream&,int);    
 
+#define method_EXTRAS                            \
+bool is_method() { return true; }                 \
+bool is_attr() { return false; }                  \
+Symbol get_name() { return name; }               \
+Formals get_formals() { return formals; }        \
+Symbol get_return_type() { return return_type; } \
+Expression get_body_expr() { return expr; }      \
+Symbol type_check();
+
+#define attr_EXTRAS                             \
+bool is_method() { return false; }               \
+bool is_attr() { return true; }                  \
+Symbol get_name() { return name; }               \
+Symbol get_type() { return type_decl; }          \
+Expression get_init_expr() { return init; }		\
+Symbol type_check();
 
 
-
-
-#define Formal_EXTRAS                              \
-virtual void dump_with_types(ostream&,int) = 0;
+#define Formal_EXTRAS                           \
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual Symbol get_name() = 0;                   \
+virtual Symbol get_type() = 0;	
 
 
 #define formal_EXTRAS                           \
-void dump_with_types(ostream&,int);
+void dump_with_types(ostream&,int);             \
+Symbol get_name() { return name; }              \
+Symbol get_type() { return type_decl; }
 
 
-#define Case_EXTRAS                             \
-virtual void dump_with_types(ostream& ,int) = 0;
+#define Case_EXTRAS                              \
+Symbol type;                                     \
+Symbol get_type() { return type; }               \
+virtual void dump_with_types(ostream&, int) = 0; \
+virtual Symbol type_check() = 0;
+
+#define branch_EXTRAS                          	    \
+Symbol type;                                     	\
+Symbol get_type() { return type; }                  \
+void set_type(Symbol s) { type = s; } 				\
+void dump_with_types(ostream&, int);            	\
+Symbol get_declaration_type() { return type_decl; } \
+Symbol type_check();
 
 
-#define branch_EXTRAS                                   \
-void dump_with_types(ostream& ,int);
-
-
-#define Expression_EXTRAS                    \
-Symbol type;                                 \
-Symbol get_type() { return type; }           \
+#define Expression_EXTRAS                       		 \
+Symbol type;                                    		 \
+Symbol get_type() { return type; }              		 \
 Expression set_type(Symbol s) { type = s; return this; } \
-virtual void dump_with_types(ostream&,int) = 0;  \
-void dump_type(ostream&, int);               \
+virtual void dump_with_types(ostream&,int) = 0; 		 \
+virtual Symbol type_check() = 0;                		 \
+void dump_type(ostream&, int);                  	     \
 Expression_class() { type = (Symbol) NULL; }
 
-#define Expression_SHARED_EXTRAS           \
-void dump_with_types(ostream&,int); 
+#define Expression_SHARED_EXTRAS                \
+void dump_with_types(ostream&,int);             \
+Symbol type_check();
 
 #endif

@@ -9,6 +9,8 @@
 #include "stringtab.h"
 #include "symtab.h"
 #include "list.h"
+#include <set>
+#include <algorithm>
 
 #define TRUE 1
 #define FALSE 0
@@ -38,11 +40,16 @@ public:
   bool is_type_defined(Symbol symbol);
   bool inheritance_dfs(Symbol symbol);
   bool build_inheritance_graph();
+  bool is_primitive(Symbol);
 
   std::map<Symbol, Class_> class_bucket;
+  Symbol least_common_ancestor_type(Symbol, Symbol);
+  bool is_subtype_of(Symbol candidate, Symbol desired_type);
+  Symbol get_parent_type_of(Symbol);
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
+  ostream& semant_error(tree_node *t);
 };
 
 
