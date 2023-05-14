@@ -16,6 +16,9 @@ extern int semant_debug;
 extern char *curr_filename;
 
 ClassTable *classtable;
+Symbol type_check(method_class* method);
+Symbol type_check(attr_class* attr);
+Symbol type_check(Feature f);
 SymbolTable<Symbol,Symbol> *objects_table;
 Class_ current_class_definition;
 Symbol current_class_name;
@@ -276,23 +279,6 @@ bool ClassTable::inheritance_dfs(Symbol symbol) {
     return true;
 }
 
-bool ClassTable::is_inheritance_graph_acyclic() {
-    color_of.clear();
-    for (auto const& class_entry : class_bucket) {
-        color_of[class_entry.first] = white;
-    }
-
-    for (auto const& class_entry : class_bucket) {
-        Symbol symbol = class_entry.first;
-        if (color_of[symbol] == white) {
-            if (!inheritance_dfs(symbol)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
 
 bool ClassTable::try_build_inheritance_graph() {
     for (const auto& class_ : class_bucket) {
@@ -499,13 +485,17 @@ method_class* get_class_method(Symbol class_name, Symbol method_name) {
 
 
 attr_class* get_class_attr(Symbol class_name, Symbol attr_name) {
-    std::map<Symbol, attr_class*> attrs = class_attrs[class_name];
-
-    if (attrs.find(attr_name) == attrs.end())
-        return nullptr;
-
-    return attrs[attr_name];
+    auto attrs_it = class_attrs.find(class_name);
+    if (attrs_it != class_attrs.end()) {
+        std::map<Symbol, attr_class*>& attrs = attrs_it->second;
+        auto attr_it = attrs.find(attr_name);
+        if (attr_it != attrs.end()) {
+            return attr_it->second;
+        }
+    }
+    return nullptr;
 }
+
 
 void ensure_class_attributes_are_unique(Class_ class_definition) {
     std::set<Symbol> class_attrs;
@@ -562,7 +552,23 @@ std::map<Symbol, attr_class*> get_class_attributes(Class_ class_definition) {
 
 
 void build_attribute_scopes(Class_ current_class) {
+    if (current_class == nullptr)
+        return;
+
     objects_table->enterscope();
+
+    if (current_class->get_name() == Object)
+        return;
+
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
+
+    if (parent_type_name == nullptr)
+        return;
+
+    auto parent_definition = classtable->class_bucket.find(parent_type_name);
+    if (parent_definition == classtable->class_bucket.end())
+        return;
+
     std::map<Symbol, attr_class*> attrs = get_class_attributes(current_class);
     for(const auto &x : attrs) {
         attr_class* attr_definition = x.second;
@@ -572,32 +578,28 @@ void build_attribute_scopes(Class_ current_class) {
         );
     }
 
-    if(current_class->get_name() == Object)
-        return;
-
-    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
-    Class_ parent_definition = classtable->class_bucket[parent_type_name];
-    build_attribute_scopes(parent_definition);
+    build_attribute_scopes(parent_definition->second);
 }
+
 
 void process_attr(Class_ current_class, attr_class* attr) {
-    if (get_class_attr(current_class->get_name(), attr->get_name()) != nullptr)
-    {
-        classtable->semant_error(current_class_definition) 
-            << " Attribute " 
-            << attr->get_name()
-            << " is an attribute of an inherited class.\n";
+    Symbol current_class_name = current_class->get_name();
+    Symbol attr_name = attr->get_name();
+
+    if (get_class_attr(current_class_name, attr_name) != nullptr) {
+        classtable->semant_error(current_class_definition)
+            << "Attribute " << attr_name << " is an attribute of an inherited class.\n";
         cerr << "Compilation halted due to static semantic errors." << endl;
-	    exit(1);
+        exit(1);
     }
 
-    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
-    if (parent_type_name == No_type)
-        return;
-
-    Class_ parent_definition = classtable->class_bucket[parent_type_name];
-    process_attr(parent_definition, attr);
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
+    if (parent_type_name != No_type) {
+        Class_ parent_definition = classtable->class_bucket[parent_type_name];
+        process_attr(parent_definition, attr);
+    }
 }
+
 
 void process_method(Class_ current_class, method_class* original_method, method_class* parent_method) {
     if (parent_method == nullptr)
@@ -693,31 +695,34 @@ void type_check(Class_ next_class) {
     ensure_class_attributes_are_unique(next_class);
     current_class_attrs = get_class_attributes(next_class);
 
-    objects_table = new SymbolTable<Symbol, Symbol>();
-    objects_table->enterscope();
-    objects_table->addid(self, new Symbol(current_class_definition->get_name()));
+     objects_table = new SymbolTable<Symbol, Symbol>();
+     objects_table->enterscope();
+     objects_table->addid(self, new Symbol(current_class_definition->get_name()));
 
-    build_attribute_scopes(next_class);
+     build_attribute_scopes(next_class);
     
     for (const auto &x : current_class_methods) {
         process_method(next_class, x.second, x.second);
     }
 
-    for (const auto &x : current_class_attrs) {
-        Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
+    if (parent_type_name != nullptr) {
         Class_ parent_definition = classtable->class_bucket[parent_type_name];
-        process_attr(parent_definition, x.second);
+        for (const auto &x : current_class_attrs) {
+            process_attr(parent_definition, x.second);
+    }
     }
 
-    for (const auto &x : current_class_attrs) {
-        x.second->type_check();
-    }
 
-    for (const auto &x : current_class_methods) {
-        x.second->type_check();
-    }
+    // for (const auto &x : current_class_attrs) {
+    //     x.second->type_check();
+    // }
 
-    objects_table->exitscope();
+    // for (const auto &x : current_class_methods) {
+    //     x.second->type_check();
+    // }
+
+    // objects_table->exitscope();
 }
 
 
@@ -1522,8 +1527,7 @@ void halt_compilation_with_message() {
      errors. Part 2) can be done in a second stage, when you want
      to build mycoolc.
  */
-void program_class::semant()
-{
+void program_class::semant(){
     initialize_constants();
 
     classtable = new ClassTable(classes);
@@ -1536,21 +1540,24 @@ void program_class::semant()
         halt_compilation_with_message();
     }
 
-        if(!classtable->is_inheritance_graph_acyclic()){
+    if(!classtable->is_inheritance_graph_acyclic()){
         halt_compilation_with_message();
     }
 
     if (!classtable->is_class_table_valid()) {
-	     halt_compilation_with_message();
+	     halt_compilation_with_message();}
 
     for (const auto &x : classtable->class_bucket)
         register_class_and_its_methods(x.second);
-    // for (int i = classes->first(); classes->more(i); i = classes->next(i))
-    //     type_check(classes->nth(i));
+    
+    for (int i = classes->first(); classes->more(i); i = classes->next(i)){
+         type_check(classes->nth(i));
+    }
 
     if (classtable->errors() > 0) {
         halt_compilation_with_message();
     }
 }
+
 
 

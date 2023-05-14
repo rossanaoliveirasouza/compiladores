@@ -33,6 +33,7 @@ private:
   std::map<Symbol, std::vector<Symbol>> inheritance_graph;
   std::map<Symbol, Symbol> class_parents;
   std::map<Symbol, NodeState> node_state;
+  std::map<Symbol, Symbol> parent_type_of;
 
 public:
   ClassTable(Classes);
