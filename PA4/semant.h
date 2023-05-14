@@ -37,8 +37,8 @@ private:
  public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
-  bool install_custom_classes(Classes);
-  bool build_inheritance_graph();
+  bool install_user_classes(Classes);
+  bool try_build_inheritance_graph();
   bool is_inheritance_graph_acyclic();
   bool is_class_table_valid();
   bool is_subtype_of(Symbol, Symbol);
