@@ -33,6 +33,10 @@ public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
   bool install_user_classes(Classes classes);
+  bool is_class_table_valid();
+  bool is_inheritance_graph_acyclic();
+  bool is_type_defined(Symbol symbol);
+  bool inheritance_dfs(Symbol symbol);
   bool build_inheritance_graph();
 
   std::map<Symbol, Class_> class_bucket;

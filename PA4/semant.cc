@@ -227,6 +227,63 @@ bool ClassTable::install_user_classes(Classes classes) {
     return true;
 }
 
+bool ClassTable::is_class_table_valid() {
+    if (!is_inheritance_graph_acyclic())
+        return false;
+
+    if (!is_type_defined(Main)) {
+        semant_error() << "Class Main is not defined.\n";
+        return false;
+    }
+    return true;
+}
+
+bool ClassTable::is_type_defined(Symbol symbol) {
+    return class_bucket.count(symbol) != 0;
+}
+
+enum SymbolColor { gray, black, white };
+std::map<Symbol, SymbolColor> color_of;
+
+bool ClassTable::inheritance_dfs(Symbol symbol) {
+    color_of[symbol] = gray;
+    for (Symbol child_symbol : inheritance_graph[symbol]) {
+        if (color_of[child_symbol] == gray) {
+            semant_error() << "There exists a circular dependency between: ";
+            symbol->print(semant_error());
+            semant_error() << " and ";
+            child_symbol->print(semant_error());
+            semant_error() << "\n";
+            return false;
+        }
+        else {
+            if (!inheritance_dfs(child_symbol)) {
+                return false;
+            }
+        }
+    }
+    color_of[symbol] = black;
+    return true;
+}
+
+bool ClassTable::is_inheritance_graph_acyclic() {
+    color_of.clear();
+    for (auto const& class_entry : class_bucket) {
+        color_of[class_entry.first] = white;
+    }
+
+    for (auto const& class_entry : class_bucket) {
+        Symbol symbol = class_entry.first;
+        if (color_of[symbol] == white) {
+            if (!inheritance_dfs(symbol)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool ClassTable::build_inheritance_graph() {
     for (const auto& x : class_bucket) {
         const Symbol class_name = x.first;
@@ -316,7 +373,7 @@ void program_class::semant()
     classtable = new ClassTable(classes);
 
     /* some semantic analysis code may go here */
-    if(!classtable->install_user_classes(classes)){
+    if (!classtable->install_user_classes(classes)) {
 	    cerr << "Compilation halted due to static semantic errors." << endl;
 	    exit(1);
     }
@@ -325,6 +382,11 @@ void program_class::semant()
     //      cerr << "Compilation halted due to static semantic errors." << endl;
 	//     exit(1);
     // }
+
+    if (!classtable->is_class_table_valid()) {
+	    cerr << "Compilation halted due to static semantic errors." << endl;
+	    exit(1);
+    }
 
     if (classtable->errors()) {
 	cerr << "Compilation halted due to static semantic errors." << endl;
