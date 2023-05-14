@@ -21,26 +21,30 @@ typedef ClassTable *ClassTableP;
 // you like: it is only here to provide a container for the supplied
 // methods.
 
+enum class NodeState { Ok, NotYetVisited, RecentlyVisited };
+
 class ClassTable {
 private:
   int semant_errors;
   void install_basic_classes();
   ostream& error_stream;
   std::map<Symbol, std::vector<Symbol>> inheritance_graph;
-  std::map<Symbol, Symbol> parent_type_of;
+  std::map<Symbol, Symbol> class_parents;
+  std::map<Symbol, NodeState> node_state;
 
 public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
   bool install_user_classes(Classes classes);
-  bool build_inheritance_graph();
+  bool there_is_a_cycle_involving(Symbol node);
+  bool is_inheritance_graph_acyclic();
+  bool try_build_inheritance_graph();
 
   std::map<Symbol, Class_> class_bucket;
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
 };
-
 
 #endif
 
