@@ -233,6 +233,7 @@ bool ClassTable::install_user_classes(Classes classes) {
         // Adicionar a classe ao class_bucket
         class_bucket[class_name] = current_class;
     }
+
     return true;
 }
 
@@ -293,38 +294,108 @@ bool ClassTable::is_inheritance_graph_acyclic() {
     return true;
 }
 
-bool ClassTable::build_inheritance_graph() {
-    for (const auto& x : class_bucket) {
-        const Symbol class_name = x.first;
+bool ClassTable::try_build_inheritance_graph() {
+    for (const auto& class_ : class_bucket) {
+        const auto class_name = class_.first;
 
-        if (class_name == Object)
+        if (class_name == Object) {
             continue;
+        }
 
-        const Class_ class_definition = x.second;
-        const Symbol class_parent_name = class_definition->get_parent();
+        const auto class_definition = class_.second;
+        const auto class_parent_name = class_definition->get_parent();
 
-        parent_type_of[class_name] = class_parent_name;
+        class_parents[class_name] = class_parent_name;
 
+        // verificar se classe pai tem o nome SELF_TYPE, o que
+        // não pode acontecer
         if (class_parent_name == SELF_TYPE) {
             semant_error(class_definition)
                 << "Class " << class_definition->get_name()
-                << " cannot inherit class " << class_parent_name
-                << ".\n";
+                << " cannot inherit class " << SELF_TYPE
+                << "." << endl;
+
             return false;
         }
 
-        const auto parent_iter = class_bucket.find(class_parent_name);
-        if (parent_iter == class_bucket.end()) {
+        const auto parent_class = class_bucket.find(class_parent_name);
+
+        // necessário verificar se a classe pai é definida
+        // em algum momento
+        if (parent_class == class_bucket.end()) {
             semant_error(class_definition) << "Class " << class_name
                 << " inherits from an undefined class " << class_parent_name
-                << ".\n";
+                << "." << endl;
+
             return false;
         }
 
-        inheritance_graph[parent_iter->first].push_back(class_name);
+        const auto parent_node = inheritance_graph.find(class_parent_name);
+
+        // inicializar o vetor de 'filhos' no grafo de herança
+        // para o pai em questão, caso o pai ainda não tenha um
+        // vetor associado a ele no grafo de herança
+        if (parent_node == inheritance_graph.end()) {
+            inheritance_graph[class_parent_name] = std::vector<Symbol>();
+        }
+    
+        // associar a classe em questão ao vetor de filhos
+        // da classe pai no grafo
+        inheritance_graph[class_parent_name].push_back(class_name);
     }
+
     return true;
 }
+
+bool ClassTable::there_is_a_cycle_involving(Symbol root_node) {
+    node_state[root_node] = NodeState::RecentlyVisited;
+
+    for (auto const& node : inheritance_graph[root_node]) {
+        // se um nó tiver o estado 'Visitado recentemente' significa
+        // que esse nó já havia sido visitado anteriormente em alguma
+        // chamada recursiva do método e, portanto, há um ciclo envolvendo esse nó
+        if (node_state[node] == NodeState::RecentlyVisited) {
+            semant_error() << "There is a circular dependency between: ";
+            root_node->print(semant_error());
+            semant_error() << " and ";
+            node->print(semant_error());
+
+            return true;
+        // a chamada recursiva faz com que os nós das subárvores
+        // sejam verificados também
+        } else if (there_is_a_cycle_involving(node)) {
+            return true;
+        }
+    }
+
+    node_state[root_node] = NodeState::Ok;
+
+    return false;
+}
+
+bool ClassTable::is_inheritance_graph_acyclic() {
+    node_state.clear();
+
+    for (auto const& node : class_bucket) {
+        node_state[node.first] = NodeState::NotYetVisited;
+    }
+
+    for (auto const& node : class_bucket) { 
+        // verificar se há ciclos envolvendo o nó em questão.
+        // É necessário verificar se o nó já foi visitado antes
+        // de verificá-lo, caso contrário haverão verificações 
+        // desnecessárias e repetidas.
+        if (
+            node_state[node.first] == NodeState::NotYetVisited &&
+            there_is_a_cycle_involving(node.first)
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 
 
 bool ClassTable::is_subtype_of(Symbol candidate, Symbol desired_type) {
@@ -1432,6 +1503,11 @@ ostream& ClassTable::semant_error(tree_node *t) {
 }
 
 
+void halt_compilation_with_message() {
+    cerr << "Compilation halted due to static semantic errors." << endl;
+    exit(1);
+}
+
 
 /*   This is the entry point to the semantic checker.
 
@@ -1450,36 +1526,30 @@ void program_class::semant()
 {
     initialize_constants();
 
-    /* ClassTable constructor may do some semantic analysis */
     classtable = new ClassTable(classes);
 
-    /* some semantic analysis code may go here */
-    if (!classtable->install_user_classes(classes)) {
-	    cerr << "Compilation halted due to static semantic errors." << endl;
-	    exit(1);
+    if(!classtable->install_user_classes(classes)){
+        halt_compilation_with_message();
     }
 
-    // if(!classtable->build_inheritance_graph()){
-    //      cerr << "Compilation halted due to static semantic errors." << endl;
-	//     exit(1);
-    // }
+    if(!classtable->try_build_inheritance_graph()){
+        halt_compilation_with_message();
+    }
+
+        if(!classtable->is_inheritance_graph_acyclic()){
+        halt_compilation_with_message();
+    }
 
     if (!classtable->is_class_table_valid()) {
-	    cerr << "Compilation halted due to static semantic errors." << endl;
-	    exit(1);
-    }
+	     halt_compilation_with_message();
 
     for (const auto &x : classtable->class_bucket)
         register_class_and_its_methods(x.second);
-    for (int i = classes->first(); classes->more(i); i = classes->next(i))
-        type_check(classes->nth(i));
-
-    //  for (int i = classes->first(); classes->more(i); i = classes->next(i))
+    // for (int i = classes->first(); classes->more(i); i = classes->next(i))
     //     type_check(classes->nth(i));
 
-    if (classtable->errors()) {
-	cerr << "Compilation halted due to static semantic errors." << endl;
-	exit(1);
+    if (classtable->errors() > 0) {
+        halt_compilation_with_message();
     }
 }
 
