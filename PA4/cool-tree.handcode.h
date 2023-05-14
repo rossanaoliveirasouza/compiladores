@@ -4,7 +4,7 @@
 #ifndef COOL_TREE_HANDCODE_H
 #define COOL_TREE_HANDCODE_H
 
-#include "cool-io.h"
+#include <iostream>
 #include "tree.h"
 #include "cool.h"
 #include "stringtab.h"
@@ -55,19 +55,19 @@ void semant();     				\
 void dump_with_types(ostream&, int);            
 
 #define Class__EXTRAS                   \
-virtual Symbol get_name() = 0;  	\
-virtual Symbol get_parent() = 0;    	\
 virtual Symbol get_filename() = 0;      \
+virtual Symbol get_name() = 0;           \
+virtual Symbol get_parent_name() = 0;     \
 virtual Features get_features() = 0;     \
 virtual void dump_with_types(ostream&,int) = 0; 
 
 
-#define class__EXTRAS                                  \
-Symbol get_name()   { return name; }		       \
-Symbol get_parent() { return parent; }     	       \
-Symbol get_filename() { return filename; }             \
+#define class__EXTRAS                           \
+Symbol get_filename() { return filename; }      \
+Symbol get_name() { return name; }               \
+Symbol get_parent_name() { return parent; }       \
 Features get_features()  { return features; }     \
-void dump_with_types(ostream&,int);                    
+void dump_with_types(ostream&,int);	
 
 
 #define Feature_EXTRAS                          \
@@ -88,6 +88,7 @@ Symbol get_return_type() { return return_type; } \
 Expression get_body_expr() { return expr; }      \
 Symbol type_check();
 
+
 #define attr_EXTRAS                             \
 bool is_method() { return false; }               \
 bool is_attr() { return true; }                  \
@@ -107,7 +108,6 @@ virtual Symbol get_type() = 0;
 void dump_with_types(ostream&,int);             \
 Symbol get_name() { return name; }              \
 Symbol get_type() { return type_decl; }
-
 
 #define Case_EXTRAS                              \
 Symbol type;                                     \

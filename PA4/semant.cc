@@ -11,24 +11,30 @@
 #include <queue>
 #include <set>
 
-
 extern int semant_debug;
 extern char *curr_filename;
 
-ClassTable *classtable;
+void raise_error();
 Symbol type_check(method_class* method);
 Symbol type_check(attr_class* attr);
 Symbol type_check(Feature f);
-SymbolTable<Symbol,Symbol> *objects_table;
-Class_ current_class_definition;
-Symbol current_class_name;
-std::map<Symbol, std::map<Symbol, method_class*>> class_methods;
-std::map<Symbol, std::map<Symbol, attr_class*>> class_attrs;
-std::map<Symbol, method_class*> current_class_methods;
-std::map<Symbol, attr_class*> current_class_attrs;
 std::map<Symbol, attr_class*> get_class_attributes(Class_ class_definition);
 
-//std::map<Symbol, Class_> class_bucket;
+SymbolTable<Symbol,Symbol> *objects_table;
+ClassTable *classtable;
+
+//////////////////////////////////////////////////////////////////////
+//                        TYPING ENVIRONMENT
+//////////////////////////////////////////////////////////////////////
+
+Symbol current_class_name;
+Class_ current_class_definition;
+
+std::map<Symbol, method_class*> current_class_methods;
+std::map<Symbol, attr_class*> current_class_attrs;
+
+std::map<Symbol, std::map<Symbol, method_class*>> class_methods;
+std::map<Symbol, std::map<Symbol, attr_class*>> class_attrs;
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -66,6 +72,7 @@ static Symbol
     substr,
     type_name,
     val;
+
 //
 // Initializing the predefined symbols.
 //
@@ -101,17 +108,18 @@ static void initialize_constants(void)
     val         = idtable.add_string("_val");
 }
 
-
+////////////////////////////////////////////////////////////////////
+//                          CLASS TABLE
+////////////////////////////////////////////////////////////////////
 
 ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
-    this->install_basic_classes();
-    /* Fill this in */
+   this->install_basic_classes();
 }
 
 void ClassTable::install_basic_classes() {
 
     // The tree package uses these globals to annotate the classes built below.
-    //curr_lineno  = 0;
+   // curr_lineno  = 0;
     Symbol filename = stringtable.add_string("<basic class>");
     
     // The following demonstrates how to create dummy parse trees to
@@ -208,51 +216,86 @@ void ClassTable::install_basic_classes() {
 						      no_expr()))),
 	       filename);
 
-    // adiciona classes básicas
-    this->class_bucket[Object] = Object_class;
-    this->class_bucket[IO] = IO_class;
-    this->class_bucket[Int] = Int_class;
-    this->class_bucket[Str] = Str_class;
-    this->class_bucket[Bool] = Bool_class;
+    this->class_lookup[Object] = Object_class;
+    this->class_lookup[IO] = IO_class;
+    this->class_lookup[Int] = Int_class;
+    this->class_lookup[Bool] = Bool_class;
+    this->class_lookup[Str] = Str_class;
 }
 
-bool ClassTable::install_user_classes(Classes classes) {
-    for (int i = classes->first(); classes->more(i); i = classes->next(i)) {
+bool ClassTable::install_custom_classes(Classes classes) {
+    for (int i = classes->first(); classes->more(i); i = classes->next(i))
+    {
         Class_ current_class = classes->nth(i);
         Symbol class_name = current_class->get_name();
-
-        // Verificar se a classe é SELF_TYPE
-        if (class_name == SELF_TYPE) {
-            semant_error(current_class) << "Redefinition of " << class_name << " is not allowed.\n";
+        if (
+            class_name == Int    ||
+            class_name == Bool   ||
+            class_name == Str    ||
+            class_name == Object ||
+            class_name == SELF_TYPE
+        ) 
+        {
+            semant_error(current_class) << "Redefinition of " << class_name << " is not allowed. \n";
             return false;
         }
-
-        // Verificar se a classe já foi definida anteriormente
-        if (class_bucket.count(class_name) > 0) {
+        else if (this->class_lookup.find(class_name) != this->class_lookup.end())
+        {
             semant_error(current_class) << "Class " << class_name << " was previously defined.\n";
             return false;
         }
-
-        // Adicionar a classe ao class_bucket
-        class_bucket[class_name] = current_class;
-    }
-
-    return true;
-}
-
-bool ClassTable::is_class_table_valid() {
-    if (!is_inheritance_graph_acyclic())
-        return false;
-
-    if (!is_type_defined(Main)) {
-        semant_error() << "Class Main is not defined.\n";
-        return false;
+        else
+            this->class_lookup[class_name] = current_class;
     }
     return true;
 }
 
-bool ClassTable::is_type_defined(Symbol symbol) {
-    return class_bucket.count(symbol) != 0;
+bool ClassTable::build_inheritance_graph() {
+
+    for (auto const& x : this->class_lookup)
+    {
+        Symbol class_name = x.first;
+
+        if (class_name == Object)
+            continue;
+
+        Class_ class_definition = x.second;
+        Symbol class_parent_name = class_definition->get_parent_name();
+
+        parent_type_of[class_name] = class_parent_name;
+
+        if( 
+            class_parent_name == Str ||  
+            class_parent_name == Int || 
+            class_parent_name == Bool ||
+            class_parent_name == SELF_TYPE
+        )
+        {
+            this->semant_error(class_definition)
+                << "Class "
+                << class_definition->get_name()
+                << " cannot inherit class "
+                << class_parent_name
+                << ".\n";
+            return false;
+        }
+        
+        if (this->class_lookup.find(class_parent_name) == this->class_lookup.end())
+        {
+            semant_error(x.second) << "Class "
+                << class_name 
+                << " inherits from an undefined class "
+                << class_parent_name
+                << ".\n";
+            return false;
+        }
+
+        if (this->inheritance_graph.find(class_parent_name) == this->inheritance_graph.end()) 
+            this->inheritance_graph[class_parent_name] = std::vector<Symbol>();
+    
+        this->inheritance_graph[class_parent_name].push_back(class_name);
+    } 
+    return true;
 }
 
 enum SymbolColor { gray, black, white };
@@ -260,129 +303,51 @@ std::map<Symbol, SymbolColor> color_of;
 
 bool ClassTable::inheritance_dfs(Symbol symbol) {
     color_of[symbol] = gray;
-    for (Symbol child_symbol : inheritance_graph[symbol]) {
-        if (color_of[child_symbol] == gray) {
-            semant_error() << "There exists a circular dependency between: ";
+    for (auto const& x : inheritance_graph[symbol])
+    {
+        if(color_of[x] == gray)
+        {
+            semant_error() << "There exists an (in) direct circular dependency between: ";
             symbol->print(semant_error());
             semant_error() << " and ";
-            child_symbol->print(semant_error());
-            semant_error() << "\n";
+            x->print(semant_error());
             return false;
         }
-        else {
-            if (!inheritance_dfs(child_symbol)) {
+        else 
+        {
+            if (!inheritance_dfs(x))
                 return false;
-            }
         }
     }
     color_of[symbol] = black;
     return true;
 }
 
-
-bool ClassTable::try_build_inheritance_graph() {
-    for (const auto& class_ : class_bucket) {
-        const auto class_name = class_.first;
-
-        if (class_name == Object) {
-            continue;
-        }
-
-        const auto class_definition = class_.second;
-        const auto class_parent_name = class_definition->get_parent();
-
-        class_parents[class_name] = class_parent_name;
-
-        // verificar se classe pai tem o nome SELF_TYPE, o que
-        // não pode acontecer
-        if (class_parent_name == SELF_TYPE) {
-            semant_error(class_definition)
-                << "Class " << class_definition->get_name()
-                << " cannot inherit class " << SELF_TYPE
-                << "." << endl;
-
-            return false;
-        }
-
-        const auto parent_class = class_bucket.find(class_parent_name);
-
-        // necessário verificar se a classe pai é definida
-        // em algum momento
-        if (parent_class == class_bucket.end()) {
-            semant_error(class_definition) << "Class " << class_name
-                << " inherits from an undefined class " << class_parent_name
-                << "." << endl;
-
-            return false;
-        }
-
-        const auto parent_node = inheritance_graph.find(class_parent_name);
-
-        // inicializar o vetor de 'filhos' no grafo de herança
-        // para o pai em questão, caso o pai ainda não tenha um
-        // vetor associado a ele no grafo de herança
-        if (parent_node == inheritance_graph.end()) {
-            inheritance_graph[class_parent_name] = std::vector<Symbol>();
-        }
-    
-        // associar a classe em questão ao vetor de filhos
-        // da classe pai no grafo
-        inheritance_graph[class_parent_name].push_back(class_name);
-    }
-
-    return true;
-}
-
-bool ClassTable::there_is_a_cycle_involving(Symbol root_node) {
-    node_state[root_node] = NodeState::RecentlyVisited;
-
-    for (auto const& node : inheritance_graph[root_node]) {
-        // se um nó tiver o estado 'Visitado recentemente' significa
-        // que esse nó já havia sido visitado anteriormente em alguma
-        // chamada recursiva do método e, portanto, há um ciclo envolvendo esse nó
-        if (node_state[node] == NodeState::RecentlyVisited) {
-            semant_error() << "There is a circular dependency between: ";
-            root_node->print(semant_error());
-            semant_error() << " and ";
-            node->print(semant_error());
-
-            return true;
-        // a chamada recursiva faz com que os nós das subárvores
-        // sejam verificados também
-        } else if (there_is_a_cycle_involving(node)) {
-            return true;
-        }
-    }
-
-    node_state[root_node] = NodeState::Ok;
-
-    return false;
-}
-
 bool ClassTable::is_inheritance_graph_acyclic() {
-    node_state.clear();
 
-    for (auto const& node : class_bucket) {
-        node_state[node.first] = NodeState::NotYetVisited;
-    }
+    color_of.clear();
+    for (auto const& x : this->class_lookup)
+        color_of[x.first] = white;
 
-    for (auto const& node : class_bucket) { 
-        // verificar se há ciclos envolvendo o nó em questão.
-        // É necessário verificar se o nó já foi visitado antes
-        // de verificá-lo, caso contrário haverão verificações 
-        // desnecessárias e repetidas.
-        if (
-            node_state[node.first] == NodeState::NotYetVisited &&
-            there_is_a_cycle_involving(node.first)
-        ) {
-            return false;
-        }
-    }
+    for (auto const& x : this->class_lookup)
+        if (color_of[x.first] == white) 
+            if (!this->inheritance_dfs(x.first))
+                return false;
 
     return true;
 }
 
 
+bool ClassTable::is_class_table_valid() {
+    if (!this->is_inheritance_graph_acyclic())
+        return false;
+
+    if (!this->is_type_defined(Main)) {
+        semant_error() << "Class Main is not defined.\n";
+        return false;
+    }
+    return true;
+}
 
 bool ClassTable::is_subtype_of(Symbol candidate, Symbol desired_type) {
     if (candidate == No_type)
@@ -402,8 +367,6 @@ bool ClassTable::is_subtype_of(Symbol candidate, Symbol desired_type) {
 
     return current == desired_type;
 }
-
-
 
 Symbol ClassTable::least_common_ancestor_type(Symbol lhs, Symbol rhs) {
     if (lhs == SELF_TYPE)
@@ -429,6 +392,16 @@ Symbol ClassTable::least_common_ancestor_type(Symbol lhs, Symbol rhs) {
     return Object;
 }
 
+Symbol ClassTable::get_parent_type_of(Symbol symbol) {
+    if (this->parent_type_of.find(symbol) == this->parent_type_of.end())
+        return No_type;
+
+    return parent_type_of[symbol];
+}
+
+bool ClassTable::is_type_defined(Symbol symbol) {
+    return class_lookup.find(symbol) != class_lookup.end();
+}
 
 bool ClassTable::is_primitive(Symbol symbol) {
     return (
@@ -439,7 +412,6 @@ bool ClassTable::is_primitive(Symbol symbol) {
         symbol == Str
     );
 }
-
 ////////////////////////////////////////////////////////////////////
 //                          CLASS UTILITIES
 ////////////////////////////////////////////////////////////////////
@@ -485,17 +457,13 @@ method_class* get_class_method(Symbol class_name, Symbol method_name) {
 
 
 attr_class* get_class_attr(Symbol class_name, Symbol attr_name) {
-    auto attrs_it = class_attrs.find(class_name);
-    if (attrs_it != class_attrs.end()) {
-        std::map<Symbol, attr_class*>& attrs = attrs_it->second;
-        auto attr_it = attrs.find(attr_name);
-        if (attr_it != attrs.end()) {
-            return attr_it->second;
-        }
-    }
-    return nullptr;
-}
+    std::map<Symbol, attr_class*> attrs = class_attrs[class_name];
 
+    if (attrs.find(attr_name) == attrs.end())
+        return nullptr;
+
+    return attrs[attr_name];
+}
 
 void ensure_class_attributes_are_unique(Class_ class_definition) {
     std::set<Symbol> class_attrs;
@@ -543,32 +511,12 @@ std::map<Symbol, attr_class*> get_class_attributes(Class_ class_definition) {
     return class_attrs;
 }
 
-
-
-
-
-///// Type Check ////////////////////////////////////////
-
-
+////////////////////////////////////////////////////////////////////
+//                          TYPECHECKING
+////////////////////////////////////////////////////////////////////
 
 void build_attribute_scopes(Class_ current_class) {
-    if (current_class == nullptr)
-        return;
-
     objects_table->enterscope();
-
-    if (current_class->get_name() == Object)
-        return;
-
-    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
-
-    if (parent_type_name == nullptr)
-        return;
-
-    auto parent_definition = classtable->class_bucket.find(parent_type_name);
-    if (parent_definition == classtable->class_bucket.end())
-        return;
-
     std::map<Symbol, attr_class*> attrs = get_class_attributes(current_class);
     for(const auto &x : attrs) {
         attr_class* attr_definition = x.second;
@@ -578,28 +526,31 @@ void build_attribute_scopes(Class_ current_class) {
         );
     }
 
-    build_attribute_scopes(parent_definition->second);
-}
+    if(current_class->get_name() == Object)
+        return;
 
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
+    Class_ parent_definition = classtable->class_lookup[parent_type_name];
+    build_attribute_scopes(parent_definition);
+}
 
 void process_attr(Class_ current_class, attr_class* attr) {
-    Symbol current_class_name = current_class->get_name();
-    Symbol attr_name = attr->get_name();
-
-    if (get_class_attr(current_class_name, attr_name) != nullptr) {
-        classtable->semant_error(current_class_definition)
-            << "Attribute " << attr_name << " is an attribute of an inherited class.\n";
-        cerr << "Compilation halted due to static semantic errors." << endl;
-        exit(1);
+    if (get_class_attr(current_class->get_name(), attr->get_name()) != nullptr)
+    {
+        classtable->semant_error(current_class_definition) 
+            << " Attribute " 
+            << attr->get_name()
+            << " is an attribute of an inherited class.\n";
+        raise_error();
     }
 
-    Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
-    if (parent_type_name != No_type) {
-        Class_ parent_definition = classtable->class_bucket[parent_type_name];
-        process_attr(parent_definition, attr);
-    }
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
+    if (parent_type_name == No_type)
+        return;
+
+    Class_ parent_definition = classtable->class_lookup[parent_type_name];
+    process_attr(parent_definition, attr);
 }
-
 
 void process_method(Class_ current_class, method_class* original_method, method_class* parent_method) {
     if (parent_method == nullptr)
@@ -671,7 +622,7 @@ void process_method(Class_ current_class, method_class* original_method, method_
     if (parent_type_name == No_type)
         return;
 
-    Class_ parent_class_definition = classtable->class_bucket[parent_type_name];
+    Class_ parent_class_definition = classtable->class_lookup[parent_type_name];
 
     process_method(
         parent_class_definition, 
@@ -695,36 +646,32 @@ void type_check(Class_ next_class) {
     ensure_class_attributes_are_unique(next_class);
     current_class_attrs = get_class_attributes(next_class);
 
-     objects_table = new SymbolTable<Symbol, Symbol>();
-     objects_table->enterscope();
-     objects_table->addid(self, new Symbol(current_class_definition->get_name()));
+    objects_table = new SymbolTable<Symbol, Symbol>();
+    objects_table->enterscope();
+    objects_table->addid(self, new Symbol(current_class_definition->get_name()));
 
-     build_attribute_scopes(next_class);
+    build_attribute_scopes(next_class);
     
     for (const auto &x : current_class_methods) {
         process_method(next_class, x.second, x.second);
     }
 
-    Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
-    if (parent_type_name != nullptr) {
-        Class_ parent_definition = classtable->class_bucket[parent_type_name];
-        for (const auto &x : current_class_attrs) {
-            process_attr(parent_definition, x.second);
-    }
+    for (const auto &x : current_class_attrs) {
+        Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
+        Class_ parent_definition = classtable->class_lookup[parent_type_name];
+        process_attr(parent_definition, x.second);
     }
 
+    for (const auto &x : current_class_attrs) {
+        x.second->type_check();
+    }
 
-    // for (const auto &x : current_class_attrs) {
-    //     x.second->type_check();
-    // }
+    for (const auto &x : current_class_methods) {
+        x.second->type_check();
+    }
 
-    // for (const auto &x : current_class_methods) {
-    //     x.second->type_check();
-    // }
-
-    // objects_table->exitscope();
+    objects_table->exitscope();
 }
-
 
 Symbol object_class::type_check() {
     if (name == self) {
@@ -744,22 +691,6 @@ Symbol object_class::type_check() {
         << name
         << " is undefined in relevant scopes.\n";
     return Object;
-}
-
-
-Symbol int_const_class::type_check() {
-    this->set_type(Int);
-    return Int;
-}
-
-Symbol bool_const_class::type_check() {
-    this->set_type(Bool);
-    return Bool;
-}
-
-Symbol string_const_class::type_check() {
-    this->set_type(Str);
-    return Str;
 }
 
 Symbol no_expr_class::type_check() {
@@ -822,76 +753,6 @@ Symbol leq_class::type_check() {
     }
     return this->get_type();
 }
-
-Symbol loop_class::type_check() {
-    Symbol pred_type = pred->type_check();
-    Symbol body_type = body->type_check();
-
-    if (pred_type != Bool)
-    {
-        classtable->semant_error(this) 
-            << "Expected the predicate of while to be of type Bool"
-            << " but got the predicate of type "
-            << pred_type
-            << " instead .\n";
-    }
-
-    this->set_type(Object);
-    return Object; 
-}
-
-Symbol block_class::type_check() {
-    Symbol last_body_expr_type = Object;
-    for (int i = body->first(); body->more(i); i = body->next(i))
-        last_body_expr_type = body->nth(i)->type_check();
-    this->set_type(last_body_expr_type);
-    return last_body_expr_type;
-}
-
-Symbol branch_class::type_check() {
-    Symbol declaration_type = type_decl;
-    Symbol declaration_id = name;
-    if (declaration_id == self) {
-        classtable->semant_error(this) << "'self' cannot be bound in a 'branch' expression.";
-    }
-    objects_table->enterscope();
-    objects_table->addid(declaration_id, new Symbol(declaration_type));
-    Symbol branch_expr_type = expr->type_check();
-    this->set_type(branch_expr_type);
-    objects_table->exitscope();
-    return branch_expr_type;
-}
-
-Symbol typcase_class::type_check() {
-    Symbol expr_type = expr->type_check();
-
-    std::set<Symbol> branch_declaration_types;
-    Symbol branch_result_type = Object;
-
-    for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
-        branch_class* branch = static_cast<branch_class*>(cases->nth(i));
-        Symbol branch_declaration_type = branch->get_declaration_type();
-        if (branch_declaration_types.find(branch_declaration_type) != branch_declaration_types.end())
-            classtable->semant_error(branch) 
-                << "Duplicate branch type" 
-                << branch_declaration_type 
-                << " in case statement.\n";
-        else
-            branch_declaration_types.insert(branch_declaration_type);
-
-        if (i == cases->first())
-            branch_result_type = branch->type_check();
-        else
-            branch_result_type = classtable->least_common_ancestor_type(
-                branch_result_type,
-                branch->type_check()
-            );
-    }
-
-    this->set_type(branch_result_type);
-    return branch_result_type;
-}
-
 
 Symbol eq_class::type_check() {
     Symbol left_type = e1->type_check();
@@ -1022,7 +883,6 @@ Symbol plus_class::type_check() {
     return this->get_type();
 }
 
-
 Symbol let_class::type_check() {
     objects_table->enterscope();
     if (identifier == self)
@@ -1053,6 +913,76 @@ Symbol let_class::type_check() {
     return type;
 }
 
+Symbol block_class::type_check() {
+    Symbol last_body_expr_type = Object;
+    for (int i = body->first(); body->more(i); i = body->next(i))
+        last_body_expr_type = body->nth(i)->type_check();
+    this->set_type(last_body_expr_type);
+    return last_body_expr_type;
+}
+
+Symbol branch_class::type_check() {
+    Symbol declaration_type = type_decl;
+    Symbol declaration_id = name;
+    if (declaration_id == self) {
+        classtable->semant_error(this) << "'self' cannot be bound in a 'branch' expression.";
+    }
+    objects_table->enterscope();
+    objects_table->addid(declaration_id, new Symbol(declaration_type));
+    Symbol branch_expr_type = expr->type_check();
+    this->set_type(branch_expr_type);
+    objects_table->exitscope();
+    return branch_expr_type;
+}
+
+Symbol typcase_class::type_check() {
+    Symbol expr_type = expr->type_check();
+
+    std::set<Symbol> branch_declaration_types;
+    Symbol branch_result_type = Object;
+
+    for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
+        branch_class* branch = static_cast<branch_class*>(cases->nth(i));
+        Symbol branch_declaration_type = branch->get_declaration_type();
+        if (branch_declaration_types.find(branch_declaration_type) != branch_declaration_types.end())
+            classtable->semant_error(branch) 
+                << "Duplicate branch type" 
+                << branch_declaration_type 
+                << " in case statement.\n";
+        else
+            branch_declaration_types.insert(branch_declaration_type);
+
+        if (i == cases->first())
+            branch_result_type = branch->type_check();
+        else
+            branch_result_type = classtable->least_common_ancestor_type(
+                branch_result_type,
+                branch->type_check()
+            );
+    }
+
+    this->set_type(branch_result_type);
+    return branch_result_type;
+}
+
+
+Symbol loop_class::type_check() {
+    Symbol pred_type = pred->type_check();
+    Symbol body_type = body->type_check();
+
+    if (pred_type != Bool)
+    {
+        classtable->semant_error(this) 
+            << "Expected the predicate of while to be of type Bool"
+            << " but got the predicate of type "
+            << pred_type
+            << " instead .\n";
+    }
+
+    this->set_type(Object);
+    return Object; 
+}
+
 Symbol cond_class::type_check() {
     Symbol pred_type = pred->type_check();
     Symbol then_type = then_exp->type_check();
@@ -1070,14 +1000,6 @@ Symbol cond_class::type_check() {
     Symbol cond_type = classtable->least_common_ancestor_type(then_type, else_type);
     this->set_type(cond_type);
     return cond_type;
-}
-
-
-Symbol ClassTable::get_parent_type_of(Symbol symbol) {
-    if (this->parent_type_of.find(symbol) == this->parent_type_of.end())
-        return No_type;
-
-    return parent_type_of[symbol];
 }
 
 method_class* lookup_method_in_chain(Symbol class_name, Symbol method_name) {  
@@ -1205,7 +1127,6 @@ Symbol dispatch_class::type_check() {
     this->set_type(dispatch_type);
     return dispatch_type;
 }
-
 
 Symbol static_dispatch_class::type_check() {
     Symbol expr_type = expr->type_check();
@@ -1464,11 +1385,20 @@ Symbol attr_class::type_check() {
     return this->get_type();
 }
 
+Symbol int_const_class::type_check() {
+    this->set_type(Int);
+    return Int;
+}
 
+Symbol bool_const_class::type_check() {
+    this->set_type(Bool);
+    return Bool;
+}
 
-
-
-
+Symbol string_const_class::type_check() {
+    this->set_type(Str);
+    return Str;
+}
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -1496,23 +1426,16 @@ ostream& ClassTable::semant_error(Symbol filename, tree_node *t)
     return semant_error();
 }
 
-ostream& ClassTable::semant_error()                  
-{                                                 
-    semant_errors++;                            
-    return error_stream;
-} 
-
 ostream& ClassTable::semant_error(tree_node *t) {
     error_stream << current_class_definition->get_filename() << ":" << t->get_line_number() << ": ";
     return semant_error();
 }
 
-
-void halt_compilation_with_message() {
-    cerr << "Compilation halted due to static semantic errors." << endl;
-    exit(1);
-}
-
+ostream& ClassTable::semant_error()                  
+{                                                 
+    semant_errors++;                            
+    return error_stream;
+} 
 
 /*   This is the entry point to the semantic checker.
 
@@ -1527,37 +1450,33 @@ void halt_compilation_with_message() {
      errors. Part 2) can be done in a second stage, when you want
      to build mycoolc.
  */
-void program_class::semant(){
-    initialize_constants();
 
-    classtable = new ClassTable(classes);
-
-    if(!classtable->install_user_classes(classes)){
-        halt_compilation_with_message();
-    }
-
-    if(!classtable->try_build_inheritance_graph()){
-        halt_compilation_with_message();
-    }
-
-    if(!classtable->is_inheritance_graph_acyclic()){
-        halt_compilation_with_message();
-    }
-
-    if (!classtable->is_class_table_valid()) {
-	     halt_compilation_with_message();}
-
-    for (const auto &x : classtable->class_bucket)
-        register_class_and_its_methods(x.second);
-    
-    for (int i = classes->first(); classes->more(i); i = classes->next(i)){
-         type_check(classes->nth(i));
-    }
-
-    if (classtable->errors() > 0) {
-        halt_compilation_with_message();
-    }
+void raise_error() {
+  cerr << "Compilation halted due to static semantic errors." << endl;
+  exit(1);
 }
 
 
+void program_class::semant()
+{
+    initialize_constants();
 
+    /* ClassTable constructor may do some semantic analysis */
+    classtable = new ClassTable(classes);
+    objects_table = new SymbolTable<Symbol, Symbol>();
+
+    if(!classtable->install_custom_classes(classes))
+        raise_error();
+    if(!classtable->build_inheritance_graph())
+        raise_error();
+    if(!classtable->is_class_table_valid())
+        raise_error();
+    if (classtable->errors())
+        raise_error();
+    for (const auto &x : classtable->class_lookup)
+        register_class_and_its_methods(x.second);
+    for (int i = classes->first(); classes->more(i); i = classes->next(i))
+        type_check(classes->nth(i));
+    if (classtable->errors())
+        raise_error();
+}
