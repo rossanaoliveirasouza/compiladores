@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <sstream>
 #include "semant.h"
 #include "utilities.h"
 #include <symtab.h>
@@ -392,11 +393,12 @@ Symbol ClassTable::least_common_ancestor_type(Symbol lhs, Symbol rhs) {
     return Object;
 }
 
-Symbol ClassTable::get_parent_type_of(Symbol symbol) {
-    if (this->parent_type_of.find(symbol) == this->parent_type_of.end())
+Symbol ClassTable::get_parent_type_of(Symbol symbol) {          ///// otimizada
+    auto it = parent_type_of.find(symbol);
+    if (it == parent_type_of.end())
         return No_type;
 
-    return parent_type_of[symbol];
+    return it->second;
 }
 
 bool ClassTable::is_type_defined(Symbol symbol) {
@@ -416,98 +418,91 @@ bool ClassTable::is_primitive(Symbol symbol) {
 //                          CLASS UTILITIES
 ////////////////////////////////////////////////////////////////////
 
-std::map<Symbol, method_class*> get_class_methods(Class_ class_definition) {
+std::map<Symbol, method_class*> get_class_methods(Class_ class_definition) {                        //// otimizada
     std::map<Symbol, method_class*> class_methods;
     Symbol class_name = class_definition->get_name();
     Features class_features = class_definition->get_features();
 
-    for (int i = class_features->first(); class_features->more(i); i = class_features->next(i)) 
-    {
-        Feature feature = class_features->nth(i);
+    for (int i = class_features->first(); class_features->more(i); i = class_features->next(i)) {
+    auto feature = class_features->nth(i);
 
-        if (!feature->is_method())
-            continue;
-
-        method_class* method = static_cast<method_class*>(feature);
+    if (auto method = dynamic_cast<method_class*>(feature)) {
         Symbol method_name = method->get_name();
         
-        if (class_methods.find(method_name) != class_methods.end())
-        {
+        auto insertion_result = class_methods.emplace(method_name, method);
+
+        if (!insertion_result.second) {
             ostream& error_stream = classtable->semant_error(class_definition);
-            error_stream << "The method :";
+            error_stream << "The method '";
             method_name->print(error_stream);
-            error_stream << " has already been defined!\n";
-        }
-        else
-        {
-            class_methods[method_name] = method;
+            error_stream << "' has already been defined!\n";
         }
     }
+}
     return class_methods;
 }
 
-method_class* get_class_method(Symbol class_name, Symbol method_name) {
-    std::map<Symbol, method_class*> methods = class_methods[class_name];
-
-    if (methods.find(method_name) == methods.end())
+method_class* get_class_method(Symbol class_name, Symbol method_name) {                             //// otimizada
+    if (class_methods.find(class_name) == class_methods.end())
         return nullptr;
 
-    return methods[method_name];
+    std::map<Symbol, method_class*>& methods = class_methods[class_name];
+    auto it = methods.find(method_name);
+
+    if (it == methods.end())
+        return nullptr;
+
+    return it->second;
 }
 
 
-attr_class* get_class_attr(Symbol class_name, Symbol attr_name) {
-    std::map<Symbol, attr_class*> attrs = class_attrs[class_name];
+attr_class* get_class_attr(Symbol class_name, Symbol attr_name) {                                   //// otimizada
+if (class_attrs.find(class_name) == class_attrs.end())
+    return nullptr;
 
-    if (attrs.find(attr_name) == attrs.end())
+    std::map<Symbol, attr_class*>& attrs = class_attrs[class_name];
+    auto it = attrs.find(attr_name);
+
+    if (it == attrs.end())
         return nullptr;
 
-    return attrs[attr_name];
+    return it->second;
 }
 
-void ensure_class_attributes_are_unique(Class_ class_definition) {
+void ensure_class_attributes_are_unique(Class_ class_definition) {                                  //// otimizada
     std::set<Symbol> class_attrs;
     Symbol class_name = class_definition->get_name();
     Features class_features = class_definition->get_features();
 
-    for (int i = class_features->first(); class_features->more(i); i = class_features->next(i)) 
-    {
-        Feature feature = class_features->nth(i);
+    for (int i = class_features->first(); class_features->more(i); i = class_features->next(i)) {
+    auto feature = class_features->nth(i);
 
-        if (!feature->is_attr())
-            continue;
-
-        attr_class* attr = static_cast<attr_class*>(feature);
+    if (auto attr = dynamic_cast<attr_class*>(feature)) {
         Symbol attr_name = attr->get_name();
         
-        if (class_attrs.find(attr_name) != class_attrs.end())
-        {
+        auto insertion_result = class_attrs.insert(attr_name);
+
+        if (!insertion_result.second) {
             classtable->semant_error(class_definition)
-                << "The attribute :"
-                << attr_name
-                << " has already been defined!\n";
+                << "The attribute '" << attr_name << "' has already been defined!\n";
         }
-        class_attrs.insert(attr_name);
     }
 }
+}
 
-std::map<Symbol, attr_class*> get_class_attributes(Class_ class_definition) {
+std::map<Symbol, attr_class*> get_class_attributes(Class_ class_definition) {                       ////// otimizada
     std::map<Symbol, attr_class*> class_attrs;
     Symbol class_name = class_definition->get_name();
     Features class_features = class_definition->get_features();
 
-    for (int i = class_features->first(); class_features->more(i); i = class_features->next(i)) 
-    {
-        Feature feature = class_features->nth(i);
+    for (int i = class_features->first(); class_features->more(i); i = class_features->next(i)) {
+        auto feature = class_features->nth(i);
 
-        if (!feature->is_attr())
-            continue;
-
-        attr_class* attr = static_cast<attr_class*>(feature);
-        Symbol attr_name = attr->get_name();
-        class_attrs[attr_name] = attr;
+        if (auto attr = dynamic_cast<attr_class*>(feature)) {
+            Symbol attr_name = attr->get_name();
+            class_attrs.emplace(attr_name, attr);
+        }
     }
-
     return class_attrs;
 }
 
@@ -515,106 +510,91 @@ std::map<Symbol, attr_class*> get_class_attributes(Class_ class_definition) {
 //                          TYPECHECKING
 ////////////////////////////////////////////////////////////////////
 
-void build_attribute_scopes(Class_ current_class) {
+void build_attribute_scopes(Class_ current_class) {                           /////Otimizada
     objects_table->enterscope();
-    std::map<Symbol, attr_class*> attrs = get_class_attributes(current_class);
-    for(const auto &x : attrs) {
+
+    auto attrs = get_class_attributes(current_class);
+    for (const auto& x : attrs) {
         attr_class* attr_definition = x.second;
         objects_table->addid(
-            attr_definition->get_name(), 
+            attr_definition->get_name(),
             new Symbol(attr_definition->get_type())
         );
     }
 
-    if(current_class->get_name() == Object)
+    Symbol current_class_name = current_class->get_name();
+    if (current_class_name == Object)
         return;
 
-    Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
     Class_ parent_definition = classtable->class_lookup[parent_type_name];
     build_attribute_scopes(parent_definition);
 }
 
-void process_attr(Class_ current_class, attr_class* attr) {
-    if (get_class_attr(current_class->get_name(), attr->get_name()) != nullptr)
-    {
-        classtable->semant_error(current_class_definition) 
-            << " Attribute " 
-            << attr->get_name()
-            << " is an attribute of an inherited class.\n";
+void process_attr(Class_ current_class, attr_class* attr) {                                     ///// otimizada
+    if (get_class_attr(current_class->get_name(), attr->get_name()) != nullptr) {
+        Symbol attr_name = attr->get_name();
+        classtable->semant_error(current_class_definition)
+            << "Attribute '"
+            << attr_name
+            << "' is an attribute of an inherited class.\n";
         raise_error();
     }
 
     Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
-    if (parent_type_name == No_type)
-        return;
-
-    Class_ parent_definition = classtable->class_lookup[parent_type_name];
-    process_attr(parent_definition, attr);
+    if (parent_type_name != No_type) {
+        Class_ parent_definition = classtable->class_lookup[parent_type_name];
+        process_attr(parent_definition, attr);
+    }
 }
 
-void process_method(Class_ current_class, method_class* original_method, method_class* parent_method) {
+void process_method(Class_ current_class, method_class* original_method, method_class* parent_method) { //// otimizada
     if (parent_method == nullptr)
-        return;
+    return;
 
+    Symbol original_method_name = original_method->get_name();
     Formals original_method_args = original_method->get_formals();
     Formals parent_method_args = parent_method->get_formals();
-    
-    int original_formal_ix = 0;
-    int parent_formal_ix = 0;
-    
-    if(original_method->get_return_type() != parent_method->get_return_type()) {
-        classtable->semant_error(current_class) 
-            << "In redefined method " 
-            << original_method->get_name() 
-            << ", the return type " 
-            << original_method->get_return_type() 
-            << " differs from the ancestor method return type "
-            << parent_method->get_return_type() 
-            << ".\n";
+
+    if (original_method->get_return_type() != parent_method->get_return_type()) {
+        classtable->semant_error(current_class)
+            << "In redefined method '"
+            << original_method_name
+            << "', the return type '"
+            << original_method->get_return_type()
+            << "' differs from the ancestor method return type '"
+            << parent_method->get_return_type()
+            << "'.\n";
     }
 
-    int original_methods_formals = 0;
-    int parent_method_formals = 0;
+    int original_method_formals = original_method_args->len();
+    int parent_method_formals = parent_method_args->len();
 
-    while (original_method_args->more(original_methods_formals))
-        original_methods_formals = original_method_args->next(original_methods_formals);
-
-    while (parent_method_args->more(parent_method_formals))
-        parent_method_formals = parent_method_args->next(parent_method_formals);
-
-    if (original_methods_formals != parent_method_formals) {
-        classtable->semant_error(current_class) 
-            << "In redefined method " 
-            << original_method->get_name() 
-            << ", the number of arguments " 
-            << "(" << original_methods_formals << ")"
-            << " differs from the ancestor method's "
-            << "number of arguments "
-            << "(" << parent_method_formals << ")"
-            << ".\n";
+    if (original_method_formals != parent_method_formals) {
+        classtable->semant_error(current_class)
+            << "In redefined method '"
+            << original_method_name
+            << "', the number of arguments ("
+            << original_method_formals
+            << ") differs from the ancestor method's number of arguments ("
+            << parent_method_formals
+            << ").\n";
     }
 
-    while (
-        original_method_args->more(original_formal_ix) &&
-        parent_method_args->more(parent_formal_ix)
-    )
-    {
-        Formal original_formal = original_method_args->nth(original_formal_ix);
-        Formal parent_formal = parent_method_args->nth(parent_formal_ix);
+    for (int i = 0; i < original_method_formals && i < parent_method_formals; i++) {
+        Formal original_formal = original_method_args->nth(i);
+        Formal parent_formal = parent_method_args->nth(i);
 
         if (original_formal->get_type() != parent_formal->get_type()) {
-            classtable->semant_error(current_class) 
-                << "In redefined method " 
-                << original_method->get_name() 
-                << ", the return type of argument " 
-                << original_formal->get_type() 
-                << " differs from the corresponding ancestor method argument return type "
-                << parent_formal->get_type() 
-                << ".\n";
+            classtable->semant_error(current_class)
+                << "In redefined method '"
+                << original_method_name
+                << "', the return type of argument '"
+                << original_formal->get_type()
+                << "' differs from the corresponding ancestor method argument return type '"
+                << parent_formal->get_type()
+                << "'.\n";
         }
-
-        original_formal_ix = original_method_args->next(original_formal_ix);
-        parent_formal_ix = parent_method_args->next(parent_formal_ix);
     }
 
     Symbol parent_type_name = classtable->get_parent_type_of(current_class->get_name());
@@ -625,12 +605,9 @@ void process_method(Class_ current_class, method_class* original_method, method_
     Class_ parent_class_definition = classtable->class_lookup[parent_type_name];
 
     process_method(
-        parent_class_definition, 
+        parent_class_definition,
         original_method,
-        get_class_method(
-            parent_type_name, 
-            original_method->get_name()
-        )
+        get_class_method(parent_type_name, original_method_name)
     );
 }
 
@@ -639,7 +616,7 @@ void register_class_and_its_methods(Class_ class_definition) {
     class_attrs[class_definition->get_name()] = get_class_attributes(class_definition);
 }
 
-void type_check(Class_ next_class) {
+void type_check(Class_ next_class) {                                                           //// otimizada
     current_class_name = next_class->get_name();
     current_class_definition = next_class;
     current_class_methods = get_class_methods(next_class);
@@ -652,97 +629,87 @@ void type_check(Class_ next_class) {
 
     build_attribute_scopes(next_class);
     
-    for (const auto &x : current_class_methods) {
+    Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
+    Class_ parent_definition = classtable->class_lookup[parent_type_name];
+
+    for (const auto& x : current_class_methods) {
         process_method(next_class, x.second, x.second);
-    }
-
-    for (const auto &x : current_class_attrs) {
-        Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
-        Class_ parent_definition = classtable->class_lookup[parent_type_name];
-        process_attr(parent_definition, x.second);
-    }
-
-    for (const auto &x : current_class_attrs) {
         x.second->type_check();
     }
 
-    for (const auto &x : current_class_methods) {
+    for (const auto& x : current_class_attrs) {
+        process_attr(parent_definition, x.second);
         x.second->type_check();
     }
 
     objects_table->exitscope();
 }
 
-Symbol object_class::type_check() {
+Symbol object_class::type_check() {                     /// otimizada
     if (name == self) {
-        this->set_type(SELF_TYPE);
+        set_type(SELF_TYPE);
         return SELF_TYPE;
     }
 
     Symbol* object_type = objects_table->lookup(name);
-    if (object_type != nullptr){
-        this->set_type(*object_type);
+    if (object_type != nullptr) {
+        set_type(*object_type);
         return *object_type;
     }
 
-    this->set_type(Object);
+    set_type(Object);
     classtable->semant_error(this)
-        << "The referenced object "
+        << "The referenced object '"
         << name
-        << " is undefined in relevant scopes.\n";
-    return Object;
+        << "' is undefined in relevant scopes.\n";
+
+    return get_type();
 }
 
-Symbol no_expr_class::type_check() {
-    this->set_type(No_type);
+Symbol no_expr_class::type_check() {                    //// otimizada
     return No_type;
 }
 
-Symbol isvoid_class::type_check() {
+
+Symbol isvoid_class::type_check() {                     ///// otimizada
     e1->type_check();
     this->set_type(Bool);
     return Bool;
 }
 
-Symbol new__class::type_check() {
-    if(type_name != SELF_TYPE && !classtable->is_type_defined(type_name))
-    {
-        this->set_type(Object);
-        classtable->semant_error(this)
-            << "Tried to instantiate an object of undefined type: "
-            << type_name
-            << " .\n";
-        return Object;
+Symbol new__class::type_check() {                       //// otimizada
+    if (type_name != SELF_TYPE) {
+        if (!classtable->is_type_defined(type_name)) {
+            this->set_type(Object);
+            classtable->semant_error(this)
+                << "Tried to instantiate an object of undefined type: "
+                << type_name
+                << " .\n";
+            return Object;
+        }
     }
     this->set_type(type_name);
     return type_name;
 }
 
-Symbol comp_class::type_check() {
-    Symbol expr_type = e1->type_check();
-    if (expr_type == Bool) {
-        this->set_type(expr_type);
-        return expr_type;
+
+Symbol comp_class::type_check() {               //// otimizada
+    Symbol expr_type = e1->type_check();    
+    if (expr_type != Bool) {
+        classtable->semant_error(this)
+            << "Argument of 'not' has type " 
+            << expr_type 
+            << " instead of Bool.\n";
     }
-    this->set_type(Object);
-    classtable->semant_error(this)
-        << "Argument of 'not' has type " 
-        << expr_type 
-        << " instead of Bool.\n";
-    return Object;
+    this->set_type(Bool);
+    return Bool;
 }
 
-Symbol leq_class::type_check() {
+
+Symbol leq_class::type_check() {                //// otimizada
     Symbol left_type = e1->type_check();
     Symbol right_type = e2->type_check();
-
-    if(left_type == Int && right_type == Int) {
-        this->set_type(Bool);
-        return Bool;
-    }
-    else
-    {
-        this->set_type(Object);
+    if (left_type != Int || right_type != Int) {
         classtable->semant_error(this) 
             << "Expected both arguments of operator <= to be of type Int"
             << " but got arguments of types "
@@ -751,24 +718,26 @@ Symbol leq_class::type_check() {
             << right_type
             << ".\n";
     }
-    return this->get_type();
-}
-
-Symbol eq_class::type_check() {
-    Symbol left_type = e1->type_check();
-    Symbol right_type = e2->type_check();
-    
-    bool is_left_type_primitive = left_type == Int || left_type == Bool || left_type == Str;
-    bool is_right_type_primitive = right_type == Int || right_type == Bool || right_type == Str;
-
-    if ((is_left_type_primitive && is_right_type_primitive) && left_type != right_type)
-    {
-        classtable->semant_error(this) << "Illegal comparison with a basic type.\n";
-    }
-
     this->set_type(Bool);
     return Bool;
 }
+
+
+Symbol eq_class::type_check() {                                         //// otimizada
+    Symbol left_type = e1->type_check();
+    Symbol right_type = e2->type_check();
+
+    bool is_primitive_comparison = (left_type == Int || left_type == Bool || left_type == Str)
+                                   && (right_type == Int || right_type == Bool || right_type == Str);
+
+    if (is_primitive_comparison && left_type != right_type) {
+        classtable->semant_error(this) << "Illegal comparison with a basic type.\n";
+    }
+
+    set_type(Bool);
+    return get_type();
+}
+
 
 Symbol lt_class::type_check() {
     Symbol left_type = e1->type_check();
@@ -935,7 +904,7 @@ Symbol branch_class::type_check() {
     return branch_expr_type;
 }
 
-Symbol typcase_class::type_check() {
+Symbol typcase_class::type_check() {                                    //// otimizada
     Symbol expr_type = expr->type_check();
 
     std::set<Symbol> branch_declaration_types;
@@ -944,26 +913,24 @@ Symbol typcase_class::type_check() {
     for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
         branch_class* branch = static_cast<branch_class*>(cases->nth(i));
         Symbol branch_declaration_type = branch->get_declaration_type();
-        if (branch_declaration_types.find(branch_declaration_type) != branch_declaration_types.end())
+        
+        if (branch_declaration_types.count(branch_declaration_type) > 0) {
             classtable->semant_error(branch) 
-                << "Duplicate branch type" 
+                << "Duplicate branch type " 
                 << branch_declaration_type 
                 << " in case statement.\n";
-        else
+        } else {
             branch_declaration_types.insert(branch_declaration_type);
+        }
 
-        if (i == cases->first())
-            branch_result_type = branch->type_check();
-        else
-            branch_result_type = classtable->least_common_ancestor_type(
-                branch_result_type,
-                branch->type_check()
-            );
+        Symbol branch_type = branch->type_check();
+        branch_result_type = classtable->least_common_ancestor_type(branch_result_type, branch_type);
     }
 
     this->set_type(branch_result_type);
     return branch_result_type;
 }
+
 
 
 Symbol loop_class::type_check() {
@@ -1027,46 +994,47 @@ method_class* lookup_method(Symbol class_name, Symbol method_name) {
     return nullptr;
 }
 
-Symbol dispatch_class::type_check() {
+bool type_check_and_report_error(Symbol actual_type, Symbol expected_type, Expression expression, const std::string& error_message) {
+    if (!classtable->is_subtype_of(actual_type, expected_type)) {
+        classtable->semant_error(expression) << error_message;
+        return false;
+    }
+    return true;
+}
 
+
+Symbol dispatch_class::type_check() {                                       //// otimizada
     Symbol expr_type = expr->type_check();
 
     if (expr_type != SELF_TYPE && !classtable->is_type_defined(expr_type)) {
-
         classtable->semant_error(this) 
             << "Dispatch on undefined class " 
             << expr_type 
             << ".\n";
 
-        this->set_type(Object);
-        return type;
+        set_type(Object);
+        return get_type();
     }
-    
+
     Symbol expr_type_name = expr_type == SELF_TYPE ? current_class_name : expr_type;
     method_class* method_definition = lookup_method(expr_type_name, name);
-  
-    if (!method_definition) 
-    {
+
+    if (!method_definition) {
         classtable->semant_error(this) 
             << "Dispatch to undefined method " 
             << name 
             << ".\n";
-        
-        this->set_type(Object);
+
+        set_type(Object);
         return Object;
     }
 
     Symbol declared_return_type = method_definition->get_return_type();
     Formals declared_method_args = method_definition->get_formals();
-    Expressions actual_method_args = this->actual;
+    Expressions actual_method_args = actual;
 
-    int declared_method_args_count = 0;
-    int actual_method_args_count = 0;
-
-    while (declared_method_args->more(declared_method_args_count))
-        declared_method_args_count = declared_method_args->next(declared_method_args_count);
-    while (actual_method_args->more(actual_method_args_count))
-        actual_method_args_count = actual_method_args->next(actual_method_args_count);
+    int declared_method_args_count = declared_method_args->len();
+    int actual_method_args_count = actual_method_args->len();
 
     if (declared_method_args_count != actual_method_args_count) {
         classtable->semant_error(this) 
@@ -1080,58 +1048,41 @@ Symbol dispatch_class::type_check() {
             << ".\n";
     }
 
-    int declared_argument_ix = declared_method_args->first();
-    int actual_argument_ix = actual_method_args->first();
-
-    Formal declared_argument;
-    Expression actual_argument;
     bool is_dispatch_valid = true;
 
-    while (
-        actual_method_args->more(actual_argument_ix) && 
-        declared_method_args->more(declared_argument_ix)
-    )
-    {
-        actual_argument = actual_method_args->nth(actual_argument_ix);
-        declared_argument = declared_method_args->nth(declared_argument_ix);
+    for (int i = 0; i < declared_method_args_count; i++) {
+        Expression actual_argument = actual_method_args->nth(i);
+        Formal declared_argument = declared_method_args->nth(i);
 
         Symbol actual_argument_type = actual_argument->type_check();
         Symbol declared_argument_type = declared_argument->get_type();
 
-        if (!classtable->is_subtype_of(actual_argument_type, declared_argument_type)) {
+        std::stringstream error_message;
+        error_message << "In the dispatch of the method " << method_definition->get_name() 
+              << ", type " << actual_argument_type 
+              << " of provided argument " << declared_argument->get_name() 
+              << " is not compatible with the corresponding signature type " 
+              << declared_argument_type << ".\n";
+
+        if (!type_check_and_report_error(actual_argument_type, declared_argument_type, this, error_message.str())) 
             is_dispatch_valid = false;
-
-            classtable->semant_error(this) 
-                << "In the dispatch of the method " 
-                << method_definition->get_name() 
-                << ", type "
-                << actual_argument_type 
-                << " of provided argument " 
-                << declared_argument->get_name() 
-                << " is not compatible with the corresponding signature type " 
-                << declared_argument_type 
-                << " .\n";
-        }
-
-        actual_argument_ix = actual_method_args->next(actual_argument_ix);
-        declared_argument_ix = declared_method_args->next(declared_argument_ix);
     }
-    
-    if (!is_dispatch_valid)
-    {
-        this->set_type(Object);
+
+    if (!is_dispatch_valid) {
+        set_type(Object);
         return Object;
     }
 
     Symbol dispatch_type = declared_return_type == SELF_TYPE ? expr_type : declared_return_type;
-    this->set_type(dispatch_type);
-    return dispatch_type;
+    set_type(dispatch_type);
+    return get_type();
 }
 
-Symbol static_dispatch_class::type_check() {
+
+Symbol static_dispatch_class::type_check() {            //// otimizada
     Symbol expr_type = expr->type_check();
 
-    if (this->type_name != SELF_TYPE && !classtable->is_type_defined(type_name)) {
+    if (!classtable->is_type_defined(type_name)) {
         classtable->semant_error(this) 
             << "Static dispatch on undefined class " 
             << type_name 
@@ -1140,23 +1091,19 @@ Symbol static_dispatch_class::type_check() {
         this->set_type(Object);
         return Object;
     }
-    if (expr_type != SELF_TYPE && !classtable->is_type_defined(expr_type)) {
-        this->set_type(Object);
-        return type;
-    }
-
-    bool is_dispatch_valid = true;
-
-    if (!classtable->is_subtype_of(expr_type, this->type_name)) {
-        is_dispatch_valid = true;
-        classtable -> semant_error(this) 
+    
+    if (!classtable->is_subtype_of(expr_type, type_name)) {
+        classtable->semant_error(this) 
             << "Expression type " 
             << expr_type 
             << " is not compatible with declared static dispatch type " 
-            << this->type_name 
-            <<  ".\n";
+            << type_name 
+            << ".\n";
+
+        this->set_type(Object);
+        return Object;
     }
-    
+
     method_class* method_definition = lookup_method(type_name, name);
     if (!method_definition) 
     {
@@ -1169,17 +1116,11 @@ Symbol static_dispatch_class::type_check() {
         return Object;
     }
 
-    Symbol declared_return_type = method_definition->get_return_type();
     Formals declared_method_args = method_definition->get_formals();
     Expressions actual_method_args = this->actual;
 
-    int declared_method_args_count = 0;
-    int actual_method_args_count = 0;
-
-    while (declared_method_args->more(declared_method_args_count))
-        declared_method_args_count = declared_method_args->next(declared_method_args_count);
-    while (actual_method_args->more(actual_method_args_count))
-        actual_method_args_count = actual_method_args->next(actual_method_args_count);
+    int declared_method_args_count = declared_method_args->len();
+    int actual_method_args_count = actual_method_args->len();
 
     if (declared_method_args_count != actual_method_args_count) {
         classtable->semant_error(this) 
@@ -1193,18 +1134,11 @@ Symbol static_dispatch_class::type_check() {
             << ".\n";
     }
 
-    int declared_argument_ix = declared_method_args->first();
-    int actual_argument_ix = actual_method_args->first();
-    Formal declared_argument;
-    Expression actual_argument;
-
-    while (
-        actual_method_args->more(actual_argument_ix) && 
-        declared_method_args->more(declared_argument_ix)
-    )
-    {
-        actual_argument = actual_method_args->nth(actual_argument_ix);
-        declared_argument = declared_method_args->nth(declared_argument_ix);
+    bool is_dispatch_valid = true;
+    
+    for (int i = 0; i < actual_method_args_count; ++i) {
+        Expression actual_argument = actual_method_args->nth(i);
+        Formal declared_argument = declared_method_args->nth(i);
 
         Symbol actual_argument_type = actual_argument->type_check();
         Symbol declared_argument_type = declared_argument->get_type();
@@ -1221,19 +1155,16 @@ Symbol static_dispatch_class::type_check() {
                 << declared_argument->get_name() 
                 << " is not compatible with the corresponding signature type " 
                 << declared_argument_type 
-                << " .\n";
+                << ".\n";
         }
-
-        actual_argument_ix = actual_method_args->next(actual_argument_ix);
-        declared_argument_ix = declared_method_args->next(declared_argument_ix);
     }
-    
-    if (!is_dispatch_valid)
-    {
+
+    if (!is_dispatch_valid) {
         this->set_type(Object);
         return Object;
     }
 
+    Symbol declared_return_type = method_definition->get_return_type();
     Symbol dispatch_type = declared_return_type == SELF_TYPE ? expr_type : declared_return_type;
     this->set_type(dispatch_type);
     return dispatch_type;
