@@ -224,127 +224,115 @@ void ClassTable::install_basic_classes() {
 }
 
 bool ClassTable::install_user_classes(Classes classes) {
-    for (int i = classes->first(); classes->more(i); i = classes->next(i)) {
+    for (int i = classes->first(); classes->more(i); i = classes->next(i))
+    {
         Class_ current_class = classes->nth(i);
         Symbol class_name = current_class->get_name();
-
-        // Verificar se a classe é SELF_TYPE
-        if (class_name == SELF_TYPE) {
-            semant_error(current_class) << "Redefinition of " << class_name << " is not allowed.\n";
+        if (
+            class_name == Int    ||
+            class_name == Bool   ||
+            class_name == Str    ||
+            class_name == Object ||
+            class_name == SELF_TYPE
+        ) 
+        {
+            semant_error(current_class) << "Redefinition of " << class_name << " is not allowed. \n";
             return false;
         }
-
-        // Verificar se a classe já foi definida anteriormente
-        if (class_lookup.count(class_name) > 0) {
+        else if (this->class_lookup.find(class_name) != this->class_lookup.end())
+        {
             semant_error(current_class) << "Class " << class_name << " was previously defined.\n";
             return false;
         }
-
-        // Adicionar a classe ao class_lookup
-        class_lookup[class_name] = current_class;
+        else
+            this->class_lookup[class_name] = current_class;
     }
-
     return true;
 }
 
 bool ClassTable::try_build_inheritance_graph() {
-    for (const auto& class_ : class_lookup) {
-        const auto class_name = class_.first;
 
-        if (class_name == Object) {
+    for (auto const& x : this->class_lookup)
+    {
+        Symbol class_name = x.first;
+
+        if (class_name == Object)
             continue;
+
+        Class_ class_definition = x.second;
+        Symbol class_parent_name = class_definition->get_parent_name();
+
+        parent_type_of[class_name] = class_parent_name;
+
+        if( 
+            class_parent_name == Str ||  
+            class_parent_name == Int || 
+            class_parent_name == Bool ||
+            class_parent_name == SELF_TYPE
+        )
+        {
+            this->semant_error(class_definition)
+                << "Class "
+                << class_definition->get_name()
+                << " cannot inherit class "
+                << class_parent_name
+                << ".\n";
+            return false;
         }
-
-        const auto class_definition = class_.second;
-        const auto class_parent_name = class_definition->get_parent();
-
-        class_parents[class_name] = class_parent_name;
-
-        // verificar se classe pai tem o nome SELF_TYPE, o que
-        // não pode acontecer
-        if (class_parent_name == SELF_TYPE) {
-            semant_error(class_definition)
-                << "Class " << class_definition->get_name()
-                << " cannot inherit class " << SELF_TYPE
-                << "." << endl;
-
+        
+        if (this->class_lookup.find(class_parent_name) == this->class_lookup.end())
+        {
+            semant_error(x.second) << "Class "
+                << class_name 
+                << " inherits from an undefined class "
+                << class_parent_name
+                << ".\n";
             return false;
         }
 
-        const auto parent_class = class_lookup.find(class_parent_name);
-
-        // necessário verificar se a classe pai é definida
-        // em algum momento
-        if (parent_class == class_lookup.end()) {
-            semant_error(class_definition) << "Class " << class_name
-                << " inherits from an undefined class " << class_parent_name
-                << "." << endl;
-
-            return false;
-        }
-
-        const auto parent_node = inheritance_graph.find(class_parent_name);
-
-        // inicializar o vetor de 'filhos' no grafo de herança
-        // para o pai em questão, caso o pai ainda não tenha um
-        // vetor associado a ele no grafo de herança
-        if (parent_node == inheritance_graph.end()) {
-            inheritance_graph[class_parent_name] = std::vector<Symbol>();
-        }
+        if (this->inheritance_graph.find(class_parent_name) == this->inheritance_graph.end()) 
+            this->inheritance_graph[class_parent_name] = std::vector<Symbol>();
     
-        // associar a classe em questão ao vetor de filhos
-        // da classe pai no grafo
-        inheritance_graph[class_parent_name].push_back(class_name);
-    }
-
+        this->inheritance_graph[class_parent_name].push_back(class_name);
+    } 
     return true;
 }
 
-bool ClassTable::there_is_a_cycle_involving(Symbol root_node) {
-    node_state[root_node] = NodeState::RecentlyVisited;
+enum SymbolColor { gray, black, white };
+std::map<Symbol, SymbolColor> color_of;
 
-    for (auto const& node : inheritance_graph[root_node]) {
-        // se um nó tiver o estado 'Visitado recentemente' significa
-        // que esse nó já havia sido visitado anteriormente em alguma
-        // chamada recursiva do método e, portanto, há um ciclo envolvendo esse nó
-        if (node_state[node] == NodeState::RecentlyVisited) {
-            semant_error() << "There is a circular dependency between: ";
-            root_node->print(semant_error());
+bool ClassTable::inheritance_dfs(Symbol symbol) {
+    color_of[symbol] = gray;
+    for (auto const& x : inheritance_graph[symbol])
+    {
+        if(color_of[x] == gray)
+        {
+            semant_error() << "There exists an (in) direct circular dependency between: ";
+            symbol->print(semant_error());
             semant_error() << " and ";
-            node->print(semant_error());
-
-            return true;
-        // a chamada recursiva faz com que os nós das subárvores
-        // sejam verificados também
-        } else if (there_is_a_cycle_involving(node)) {
-            return true;
+            x->print(semant_error());
+            return false;
+        }
+        else 
+        {
+            if (!inheritance_dfs(x))
+                return false;
         }
     }
-
-    node_state[root_node] = NodeState::Ok;
-
-    return false;
+    color_of[symbol] = black;
+    return true;
 }
 
 bool ClassTable::is_inheritance_graph_acyclic() {
-    node_state.clear();
 
-    for (auto const& node : class_lookup) {
-        node_state[node.first] = NodeState::NotYetVisited;
-    }
+    color_of.clear();
+    for (auto const& x : this->class_lookup)
+        color_of[x.first] = white;
 
-    for (auto const& node : class_lookup) { 
-        // verificar se há ciclos envolvendo o nó em questão.
-        // É necessário verificar se o nó já foi visitado antes
-        // de verificá-lo, caso contrário haverão verificações 
-        // desnecessárias e repetidas.
-        if (
-            node_state[node.first] == NodeState::NotYetVisited &&
-            there_is_a_cycle_involving(node.first)
-        ) {
-            return false;
-        }
-    }
+    for (auto const& x : this->class_lookup)
+        if (color_of[x.first] == white) 
+            if (!this->inheritance_dfs(x.first))
+                return false;
 
     return true;
 }
