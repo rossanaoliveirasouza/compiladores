@@ -28,7 +28,7 @@ class ClassTable {
 private:
   int semant_errors;
   void install_basic_classes();
-  bool inheritance_dfs(Symbol symbol);
+  bool symbol_subtree_is_acyclic(Symbol symbol);
   ostream& error_stream;
   std::map<Symbol, std::vector<Symbol>> inheritance_graph;
   std::map<Symbol, Symbol> parent_type_of;
@@ -37,10 +37,10 @@ private:
  public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
-  bool install_user_classes(Classes);
-  bool try_build_inheritance_graph();
+  void install_user_classes(Classes);
+  void build_inheritance_graph();
   bool is_inheritance_graph_acyclic();
-  bool is_class_table_valid();
+  void check_class_table();
   bool is_subtype_of(Symbol, Symbol);
   bool is_type_defined(Symbol);
   bool is_primitive(Symbol);

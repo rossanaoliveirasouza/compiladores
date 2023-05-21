@@ -224,7 +224,7 @@ void ClassTable::install_basic_classes() {
     this->class_lookup[Str] = Str_class;
 }
 
-bool ClassTable::install_user_classes(Classes classes) {
+void ClassTable::install_user_classes(Classes classes) {
     for (int i = classes->first(); classes->more(i); i = classes->next(i))
     {
         Class_ current_class = classes->nth(i);
@@ -238,20 +238,17 @@ bool ClassTable::install_user_classes(Classes classes) {
         ) 
         {
             semant_error(current_class) << "Redefinition of " << class_name << " is not allowed. \n";
-            return false;
         }
         else if (this->class_lookup.find(class_name) != this->class_lookup.end())
         {
             semant_error(current_class) << "Class " << class_name << " was previously defined.\n";
-            return false;
         }
         else
             this->class_lookup[class_name] = current_class;
     }
-    return true;
 }
 
-bool ClassTable::try_build_inheritance_graph() {
+void ClassTable::build_inheritance_graph() {
 
     for (auto const& x : this->class_lookup)
     {
@@ -278,7 +275,7 @@ bool ClassTable::try_build_inheritance_graph() {
                 << " cannot inherit class "
                 << class_parent_name
                 << ".\n";
-            return false;
+            return;
         }
         
         if (this->class_lookup.find(class_parent_name) == this->class_lookup.end())
@@ -288,66 +285,74 @@ bool ClassTable::try_build_inheritance_graph() {
                 << " inherits from an undefined class "
                 << class_parent_name
                 << ".\n";
-            return false;
+            return;
         }
 
-        if (this->inheritance_graph.find(class_parent_name) == this->inheritance_graph.end()) 
-            this->inheritance_graph[class_parent_name] = std::vector<Symbol>();
+        if (inheritance_graph.find(class_parent_name) == inheritance_graph.end()) 
+            inheritance_graph[class_parent_name] = std::vector<Symbol>();
     
-        this->inheritance_graph[class_parent_name].push_back(class_name);
+        inheritance_graph[class_parent_name].push_back(class_name);
     } 
-    return true;
 }
 
-enum SymbolColor { gray, black, white };
-std::map<Symbol, SymbolColor> color_of;
+enum SymbolState { visited, ok, notYetVisited };
+std::map<Symbol, SymbolState> symbol_states;
 
-bool ClassTable::inheritance_dfs(Symbol symbol) {
-    color_of[symbol] = gray;
-    for (auto const& x : inheritance_graph[symbol])
+bool ClassTable::symbol_subtree_is_acyclic(Symbol symbol)
+{
+    symbol_states[symbol] = visited;
+
+    for (auto const& node : inheritance_graph[symbol])
     {
-        if(color_of[x] == gray)
+        if (symbol_states[node] == visited)
         {
             semant_error() << "There exists an (in) direct circular dependency between: ";
             symbol->print(semant_error());
             semant_error() << " and ";
-            x->print(semant_error());
+            node->print(semant_error());
             return false;
         }
-        else 
+        else if (!symbol_subtree_is_acyclic(node)) 
         {
-            if (!inheritance_dfs(x))
-                return false;
+            return false;
         }
     }
-    color_of[symbol] = black;
-    return true;
-}
 
-bool ClassTable::is_inheritance_graph_acyclic() {
-
-    color_of.clear();
-    for (auto const& x : this->class_lookup)
-        color_of[x.first] = white;
-
-    for (auto const& x : this->class_lookup)
-        if (color_of[x.first] == white) 
-            if (!this->inheritance_dfs(x.first))
-                return false;
+    symbol_states[symbol] = ok;
 
     return true;
 }
 
+bool ClassTable::is_inheritance_graph_acyclic() 
+{
+    symbol_states.clear();
 
-bool ClassTable::is_class_table_valid() {
+    for (auto const& c : this->class_lookup)
+    {
+        symbol_states[c.first] = notYetVisited;
+    }
+
+    for (auto const& c : this->class_lookup)
+    {
+        if (
+            symbol_states[c.first] == notYetVisited &&
+            !this->symbol_subtree_is_acyclic(c.first)
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+void ClassTable::check_class_table() {
     if (!this->is_inheritance_graph_acyclic())
-        return false;
+        raise_error();
 
     if (!this->is_type_defined(Main)) {
         semant_error() << "Class Main is not defined.\n";
-        return false;
     }
-    return true;
 }
 
 bool ClassTable::is_subtype_of(Symbol candidate, Symbol desired_type) {
@@ -514,6 +519,7 @@ void build_attribute_scopes(Class_ current_class) {                           //
     objects_table->enterscope();
 
     auto attrs = get_class_attributes(current_class);
+
     for (const auto& x : attrs) {
         attr_class* attr_definition = x.second;
         objects_table->addid(
@@ -527,7 +533,12 @@ void build_attribute_scopes(Class_ current_class) {                           //
         return;
 
     Symbol parent_type_name = classtable->get_parent_type_of(current_class_name);
+
+    if (parent_type_name == No_type) 
+        return;
+
     Class_ parent_definition = classtable->class_lookup[parent_type_name];
+
     build_attribute_scopes(parent_definition);
 }
 
@@ -1396,18 +1407,18 @@ void program_class::semant()
     classtable = new ClassTable(classes);
     objects_table = new SymbolTable<Symbol, Symbol>();
 
-    if(!classtable->install_user_classes(classes))
-        raise_error();
-    if(!classtable->try_build_inheritance_graph())
-        raise_error();
-    if(!classtable->is_class_table_valid())
-        raise_error();
-    if (classtable->errors())
-        raise_error();
+    classtable->install_user_classes(classes);
+
+    classtable->build_inheritance_graph();
+
+    classtable->check_class_table();
+
     for (const auto &x : classtable->class_lookup)
         register_class_and_its_methods(x.second);
+
     for (int i = classes->first(); classes->more(i); i = classes->next(i))
         type_check(classes->nth(i));
+
     if (classtable->errors())
         raise_error();
 }
