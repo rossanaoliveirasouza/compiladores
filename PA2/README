@@ -123,42 +123,57 @@ Instructions
 Write-up for PA2
 ----------------
 
-
 ====================================================================
 Trabalho apresentado à disciplina de compiladores do Curso de Ciência da Computação da PUC - Minas
 Alunos: Rossana Souza, Lucas Milard, Natan Alexandre, Luam Gonçalves
 ====================================================================
-*** Comentários: ***
+*** Comentários:**
 
-1. Os comentários foram separados em comentários de linhas múltiplas e comentários de linha única. Sendo que os identificadores de início e fio do primeiro tipo são "(*" e "*)" e o comentário de linha única com "--".
+1. Os comentários foram separados em comentários de linhas múltiplas e comentários de linha única. Sendo que os identificadores de início e fio do primeiro tipo são "(" e ")" e o comentário de linha única com "--".
 2. Se uma quebra de linha ocorrer dentro de um comentário múltiplo o contador de linhas também irá somá-la.
 3. Caso seja encontrado algum EOF no comentário um erro é retornado. 
 
-*** Strings: ***
-********************************************************
-******************************************************** FALTA AQUI
-********************************************************
+*** Strings:**
 
-*** Plavras chave: ***
+1. Strings são identificadas com o caracter " (aspas duplas).
+2. Caso seja encontrado algum EOF no meio da string um erro é retornado.
+3. Caso a string seja muito grande um erro tamém é disparado.
+4. Casos de \" aninhados também foram tratados, como o exemplo do arquivo  tests/lam.cl.
+line 260 out_string("    { out_string(\"Applying closure "); 
+
+*** Palavras chave:**
+
 As palavras chaves ou palavras reservadas são case insensitive na linguagem cool, por isso foram previstas todas as possíveis formas de escrever essas palavras com letras maiúsculas e minúsculas.
 
-*** Testes: ***
-1. Os testes foram realizados de forma isolado, para cada caso de erro, e também de forma combinada, combinando todos os erros possíveis. Também foram realizados testes nos quais nenhum erro foi encontado e o processamento foi concluído com sucesso. 
+*** Testes:**
 
-*** TYPEID e OBJECTID: ***
+1. Os testes foram realizados de forma isolada, para cada caso de erro, e também de forma combinada, combinando todos os erros possíveis. Também foram realizados testes nos quais nenhum erro foi encontado e o processamento foi concluído com sucesso. 
+2. Testes com os código de exemplo também foram feitos, utilizando todo o compilador pelo script de mycoolc, resultando em um arquivo .s
+3. Testes com arquivo que possuem dependência entre si também foram realizados como o caso do atoi_test.cl que necessita do arquivo atoi.cl. Nesses testes a compilação funcionou como o esperado utilizando o script mycoolc.
+
+./mycoolc tests/atoi_test.cl tests/atoi.cl
+
+4. Todos os arquivos de teste da pasta "tests" foram testados e compilados corretamente. 
+5. O trabalho extra PA1 também foi utilizado como teste para o PA2. Para realizar este teste é necessário rodar:
+
+./mycool PA1/stack.cl PA1/atoi.cl
+
+*** TYPEID e OBJECTID:**
+
 Os tipos de variáveis e objetos dentro da linguagem cool não possuem identificadores exclusivos, dessa forma são tratados como typeid e objectid. Os typeid's são os tipos que começam com letra maiúscula, por exemplo "String" e "Int". Já os tipos que inicial com letra minúscula são considerados objectid's. 
 
-*** Símbolos e operadores: ***
+*** Símbolos e operadores:**
+
 1. A lista de símbolos aceita os seguintes caracteres: ("+"|"-"|"*"|"/"|"~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@"). Quando o programa encontra qualquer um desses caracteres ele retorna ele mesmo. 
 
 *** Inteiros: ***
+
 1. Os inteiros são aceitos no range de 0-9 e são concatenados caso sejam maiores que um dígito. Não há limite para o tamanho do inteiro. 
 
-*** Contador de linha: 
+*** Contador de linha: ***
+
 1. A cada nova linha o contador "curr_lineno" é incrementado. Caso algum erro ocorra ele será informado na exata linha onde o erro foi encontrado. 
 
-*** Erros: ***
-1. Os erros são armazenados na variável "error_msg". Caso algum erro ocorra o programa continuará sendo processado até o final e os erros serão exibidos na exata linha em que ocorreram devido ao contador de linhas "curr_lineno". 
+*** Erros:**
 
-
-
+1. Os erros são armazenados na variável "error_msg". Caso algum erro ocorra o programa continuará sendo processado até o final e os erros serão exibidos na exata linha em que ocorreram devido ao contador de linhas "curr_lineno".

@@ -1,4 +1,4 @@
---  \n teste \n $ [\r\n]+$ --
+
 
 class StackCommand {
 

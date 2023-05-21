@@ -53,6 +53,18 @@ int string_start_symbol = 0;
 bool in_nested_comment = false;
 bool in_string = false;
 
+#define MAXIMUM_LENGTH_OF_STRING_CONSTANT 256
+
+bool escape_line_break_was_used = false;
+
+char stringConstant[MAXIMUM_LENGTH_OF_STRING_CONSTANT];
+int stringConstantNextCharIndex = 0;
+
+void resetStringConstant() {
+  memset(stringConstant, '\0', MAXIMUM_LENGTH_OF_STRING_CONSTANT);
+  stringConstantNextCharIndex = 0;
+}
+
 %}
 
 /*
@@ -70,10 +82,11 @@ MULTIPLE_COMMENT_START      "(*"
 MULTIPLE_COMMENT_END        "*)"
 INLINE_COMMENT_TOKEN        "--"
 BLANK                       (" "|\f|\r|\t|\v)
-OPERATOR                    ("+"|"-"|"*"|"/")
+ARITHMETIC_OPERATORS        ("+"|"-"|"*"|"/")
 SINGLE_CHAR_TOKEN           ("~"|"<"|"="|"("|")"|"{"|"}"|";"|":"|"."|","|"@")
-TYPEID                      [A-Z][a-zA-Z0-9_]*
-OBJECTID                    [a-z][a-zA-Z0-9_]*
+BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
+BOOL_CONST_TRUE             t[Rr][Uu][Ee]
+INT_CONST                   [0-9]+
 CLASS                       [Cc][Ll][Aa][Ss][Ss]
 IN                          [Ii][Nn]  
 ELSE                        [Ee][Ll][Ss][Ee]   
@@ -90,10 +103,11 @@ CASE                        [Cc][Aa][Ss][Ee]
 ESAC                        [Ee][Ss][Aa][Cc]   
 NEW                         [Nn][Ee][Ww]      
 OF                          [Oo][Ff]          
-NOT                         [Nn][Oo][Tt]      
-BOOL_CONST_FALSE            f[Aa][Ll][Ss][Ee]
-BOOL_CONST_TRUE             t[Rr][Uu][Ee]
-INT_CONST                   [0-9]+
+NOT                         [Nn][Oo][Tt]
+
+TYPEID                      ("SELF_TYPE"|[A-Z]([a-zA-Z0-9_])*)
+OBJECTID                    ("self"|[a-z]([a-zA-Z0-9_])*)
+
 
 %%
 
@@ -116,7 +130,11 @@ INT_CONST                   [0-9]+
   }
 
   if(comment_start_symbol < 0){
+<<<<<<< HEAD
     cool_yylval.error_msg = "END OF COMMENTsymbol found unexpectedly!";
+=======
+    cool_yylval.error_msg = "END OF COMMENT symbol found unexpectedly!";
+>>>>>>> d99c25bf812ca9ddebbc104d2c73216e2ff8c211
 	  return (ERROR);
   }
 }
@@ -132,7 +150,11 @@ INT_CONST                   [0-9]+
 {MULTIPLE_COMMENT_END} {
   if(!in_nested_comment)
   {
+<<<<<<< HEAD
     cool_yylval.error_msg = "END OF COMMENTsymbol found unexpectedly!";
+=======
+    cool_yylval.error_msg = "END OF COMMENT symbol found unexpectedly!";
+>>>>>>> d99c25bf812ca9ddebbc104d2c73216e2ff8c211
 	  return (ERROR);
   }
 }
@@ -144,56 +166,10 @@ INT_CONST                   [0-9]+
 {INLINE_COMMENT_TOKEN} {BEGIN(INLINE_COMMENT);}
 <INLINE_COMMENT>.      {}
 <INLINE_COMMENT>\n     { curr_lineno++; BEGIN(INITIAL); } // Also increases the value of curr_lineno for each single line comment found
+<<<<<<< HEAD
+=======
 
- /*
-  *  The multiple-character operators.
-  */              
 
-{CLASS}             { return CLASS;}
-{IN}                { return IN; }
-{DARROW}            { return DARROW; }
-{BLANK}             { /* ignore */ }
-{SINGLE_CHAR_TOKEN} { return yytext[0]; }
-{IN}                { return IN; }
-{ELSE}              { return ELSE; }
-{FI}                { return FI; }
-{IF}                { return IF; }
-{INHERITS}          { return INHERITS; }
-{ISVOID}            { return ISVOID; }
-{LET}               { return LET; }
-{LOOP}              { return LOOP; }
-{POOL}              { return POOL; }
-{THEN}              { return THEN; }
-{WHILE}             { return WHILE; }
-{CASE}              { return CASE; }
-{ESAC}              { return ESAC; }
-{NEW}               { return NEW; }
-{OF}                { return OF; }
-{NOT}               { return NOT; }
-
-\n	 { curr_lineno++; }
-
-{INT_CONST}    {
-  yylval.symbol = inttable.add_string(yytext);
-  return (INT_CONST);
-}     
-
-{TYPEID} { 
-  yylval.symbol = inttable.add_string(yytext); return (TYPEID); 
-}
-
-{OBJECTID} {
-  cool_yylval.symbol = idtable.add_string(yytext);
-  return (OBJECTID);
-}
-
- /*
-  * Keywords are case-insensitive except for the values true and false,
-  * which must begin with a lower-case letter.
-  */
-
-{BOOL_CONST_FALSE}  { return (BOOL_CONST); }
-{BOOL_CONST_TRUE}  { return (BOOL_CONST); }
 
  /*
   *  String constants (C syntax)
@@ -201,5 +177,168 @@ INT_CONST                   [0-9]+
   *  \n \t \b \f, the result is c.
   *
   */
+
+\" {
+  BEGIN(STRING_CONSTANT);
+
+  resetStringConstant();
+}
+
+<STRING_CONSTANT>\" {
+  BEGIN(INITIAL);
+  
+  stringConstant[stringConstantNextCharIndex] = '\0';
+  cool_yylval.symbol = stringtable.add_string(stringConstant);
+
+  resetStringConstant();
+
+  return STR_CONST;
+}
+
+<STRING_CONSTANT><EOF> {
+  cool_yylval.error_msg = "EOF in string constant";
+
+  resetStringConstant();
+
+  return (ERROR);
+}
+ 
+<STRING_CONSTANT>\n {
+  curr_lineno++;
+
+  cool_yylval.error_msg = "Unterminated string constant";
+
+  resetStringConstant();
+
+  return (ERROR);
+}
+
+<STRING_CONSTANT>\0 {
+  cool_yylval.error_msg = "String contains null character";
+
+  resetStringConstant();
+
+  return (ERROR);
+}
+
+<STRING_CONSTANT>(\\n|\\\n) {
+  curr_lineno++;
+  stringConstant[stringConstantNextCharIndex++] = '\n';
+}
+
+<STRING_CONSTANT>\\t {
+  stringConstant[stringConstantNextCharIndex++] = '\t';
+}
+
+<STRING_CONSTANT>\\f {
+  stringConstant[stringConstantNextCharIndex++] = '\f';
+}
+
+<STRING_CONSTANT>\\b {
+  stringConstant[stringConstantNextCharIndex++] = '\b';
+}
+
+<STRING_CONSTANT>"\\"[^\0] { // Treat generic Escape as different from null
+    if (stringConstantNextCharIndex + 1 < MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
+      stringConstant[stringConstantNextCharIndex] = yytext[1]; 
+    } 
+    else {
+      cool_yylval.error_msg = "String constant too long";
+      resetStringConstant();
+      return (ERROR); 
+    }
+}
+
+<STRING_CONSTANT>. {
+  if (stringConstantNextCharIndex >= MAXIMUM_LENGTH_OF_STRING_CONSTANT) {
+    cool_yylval.error_msg = "String constant too long";
+
+    resetStringConstant();
+
+    return ERROR;
+  }
+
+  stringConstant[stringConstantNextCharIndex++] = yytext[0];
+}
+>>>>>>> d99c25bf812ca9ddebbc104d2c73216e2ff8c211
+
+ /*
+  *  The multiple-character operators.
+  */              
+
+{BLANK}                     { /* ignore */ }
+
+{ASSIGN}	                  { return ASSIGN;}
+{CLASS}                     { return CLASS;}
+{IN}                        { return IN; }
+{DARROW}                    { return DARROW; }
+{ARITHMETIC_OPERATORS}      { return (int)yytext[0]; }
+{SINGLE_CHAR_TOKEN}         { return (int)yytext[0]; }
+{IN}                        { return IN; }
+{ELSE}                      { return ELSE; }
+{FI}                        { return FI; }
+{IF}                        { return IF; }
+{INHERITS}                  { return INHERITS; }
+{ISVOID}                    { return ISVOID; }
+{LET}                       { return LET; }
+{LOOP}                      { return LOOP; }
+{POOL}                      { return POOL; }
+{THEN}                      { return THEN; }
+{WHILE}                     { return WHILE; }
+{CASE}                      { return CASE; }
+{ESAC}                      { return ESAC; }
+{NEW}                       { return NEW; }
+{OF}                        { return OF; }
+{NOT}                       { return NOT; }
+{LE}                        { return LE; }
+
+
+ /*
+  * Keywords are case-insensitive except for the values true and false,
+  * which must begin with a lower-case letter.
+  */
+
+
+{BOOL_CONST_FALSE}  { 
+	cool_yylval.boolean = false;
+  return (BOOL_CONST); }
+
+{BOOL_CONST_TRUE}  { 
+  cool_yylval.boolean = true;
+  return (BOOL_CONST); 
+}
+
+
+\n { 
+  curr_lineno++;
+}
+
+{INT_CONST}    {
+<<<<<<< HEAD
+  yylval.symbol = inttable.add_string(yytext);
+=======
+  cool_yylval.symbol = inttable.add_string(yytext);
+>>>>>>> d99c25bf812ca9ddebbc104d2c73216e2ff8c211
+  return (INT_CONST);
+}    
+
+{TYPEID} { 
+  yylval.symbol = idtable.add_string(yytext);
+  return (TYPEID); 
+}
+
+{OBJECTID} {
+  cool_yylval.symbol = idtable.add_string(yytext);
+  return (OBJECTID);
+}
+
+. {
+  cool_yylval.error_msg = yytext;
+  return (ERROR);
+}
+
+
+
+
 
 %%

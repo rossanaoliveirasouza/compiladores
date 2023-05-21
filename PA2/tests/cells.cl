@@ -53,13 +53,13 @@ class CellularAutomaton inherits IO {
         then
             "X"
         else
-            '.'
+            "."
         fi
     };
    
     evolve() : SELF_TYPE {
         (let position : Int in
-        (let num : Int <- num_cells[] in
+        (let num : Int <- num_cells() in
         (let temp : String in
             {
                 while position < num loop
@@ -75,27 +75,6 @@ class CellularAutomaton inherits IO {
     };
 };
 
-class TestingStrings {
-    singleLineString : String = "Just a normal string 123 :)";
-
-    multilineString : String = "This is a \
-                                multiline string!\
-                                Cool!";
-
-    stringWithLineBreak : String = "The \n should become a line break";
-
-    stringWithTab : String = "The \t should become a tab";
-
-    tooLongString : String = "Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!Cool!";
-};
-
-class ArithmeticOperations {
-    multiplication : Int = 10 * 10;
-    division : Int = 10 / 10;
-    sum : Int = 10 + 10;
-    subtraction : Int = 10 - 10;
-};
-
 class Main {
     cells : CellularAutomaton;
    
@@ -104,14 +83,14 @@ class Main {
             cells <- (new CellularAutomaton).init("         X         ");
             cells.print();
             (let countdown : Int <- 20 in
-                while countdown > 0 loop
+                while 0 < countdown loop
                     {
                         cells.evolve();
                         cells.print();
                         countdown <- countdown - 1;
-                    
+                    }
                 pool
-            );  (* end let countdown
+            );
             self;
         }
     };
