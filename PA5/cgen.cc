@@ -1315,37 +1315,38 @@ int next_label() {
   return current_label_ix++;
 }
 
-void assign_class::code(ostream &s, cgen_context ctx) {
-  expr->code(s, ctx); // acc value
-
+void assign_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado 
+  expr-> code(s, ctx); // ostream &s são fluxos de saída, cgen_context ctx fornece contexto para geração do código
+// obtem deslocamentos (índices) da variável name no escopo atual
   int scope_stack_offset = ctx.get_scope_identifier_offset(name);
   int method_arg_offset = ctx.get_method_attr_offset(name);
   int class_attr_offset = ctx.get_class_attribute_identifier_offset(name);
-  
-  bool is_in_scope = scope_stack_offset != -1;
-  bool is_method_argument = method_arg_offset != -1;
-  bool is_class_attr = class_attr_offset != -1;
-
-  if (is_in_scope) {
-    emit_store(ACC, scope_stack_offset + 1, SP, s);
+// se for != de -1 significa que a variável está no escopo atual
+// armazena o valor no local correto da pilha de escopos e se necessário passa o coletor de lixo
+  if (scope_stack_offset != -1) {
+    emit_store(ACC, scope_stack_offset, SP, s);
     if (cgen_Memmgr == GC_GENGC) {
-      emit_addiu(A1, SP, 4 * (scope_stack_offset + 1), s);
+      emit_addiu(A1, SP, 4 * scope_stack_offset, s);
       emit_gc_assign(s);
     }
     return;
   }
-  if (is_method_argument) {
-    emit_store(ACC, 3 + method_arg_offset, FP, s);
+// se for != -1 significa que a variável é um argumento do método atual
+// armazena o valor no local correto do frame do método (Frame pointer - FP) e realiza coleta de lixo se necessário
+  if (method_arg_offset != -1) {
+    emit_store(ACC, method_arg_offset + 3, FP, s);
     if (cgen_Memmgr == GC_GENGC) {
-      emit_addiu(A1, FP, 4 * (3 + method_arg_offset), s);
+      emit_addiu(A1, FP, 4 * (method_arg_offset + 3), s);
       emit_gc_assign(s);
     }
     return;
   }
-  if (is_class_attr) {
+// nesse caso, se for verdadeiro, a variável é um atributo da classe atual
+// armazena o valor no local correto do objeto SELF, se necessário, tbm realiza coleta de lixo
+  if (class_attr_offset != -1) {
     emit_store(ACC, class_attr_offset, SELF, s);
     if (cgen_Memmgr == GC_GENGC) {
-      emit_addiu(A1, SELF, 4 * (class_attr_offset), s);
+      emit_addiu(A1, SELF, 4 * class_attr_offset, s);
       emit_gc_assign(s);
     }
     return;
@@ -1384,8 +1385,6 @@ void static_dispatch_class::code(ostream &s, cgen_context ctx) { ///////////////
   emit_jalr(T1, s);
 }
 
-
-
 void dispatch_class::code(ostream &s, cgen_context ctx) {
   Expressions actual_method_args = actual;
   Symbol dispatch_target_type = expr->get_type() == SELF_TYPE ? ctx.self_name : expr->get_type();
@@ -1420,39 +1419,39 @@ void dispatch_class::code(ostream &s, cgen_context ctx) {
   emit_jalr(T1, s);
 }
 
-void cond_class::code(ostream &s, cgen_context ctx) {
-  int predicate_fails = next_label();
-  int done_label = next_label();
+void cond_class::code(ostream &s, cgen_context ctx) { ///////////////////////////////////////// otimizado
+// ostream &s são fluxos de saída, cgen_context ctx fornece contexto para geração do código
+  int done_label = next_label(); 
 
-  pred->code(s, ctx);
+  pred->code(s, ctx); // codigo para avaliar o predicado e coloca em T1
   emit_fetch_int(T1, ACC, s);
-  emit_beq(T1, ZERO, predicate_fails, s);
+  emit_beq(T1, ZERO, done_label, s);// se T1 for zero, o predicado é falso, o fluxo é desviado para o rótulo "done_label" e o código pula para o bloco "then_exp"
   //
-  then_exp->code(s, ctx);
+  then_exp->code(s, ctx); // gera o código a ser executado se o predicado for verdadeiro
   emit_jump_to_label(done_label, s);
   //
-  emit_label_def(predicate_fails, s);
-  else_exp->code(s, ctx);
+  else_exp->code(s, ctx);// gera o código a ser executado se o predicado for falso
   //
-  emit_label_def(done_label, s);
+  emit_label_def(done_label, s); // gera o tórulo "done_label" para marcar o ponto de saída após a execução da construção condicional
 }
 
-void loop_class::code(ostream &s, cgen_context ctx) {
+void loop_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+  //loop_begin_label e loop_exit_label: Gera dois rótulos distintos para controlar o fluxo de execução. loop_begin_label marca o início do loop, e loop_exit_label marca o ponto de saída do loop.
   int loop_begin_label = next_label();
   int loop_exit_label = next_label();
 
   emit_label_def(loop_begin_label, s);
   // loop begin
   pred->code(s, ctx);
-  emit_fetch_int(T1, ACC, s);
+  emit_fetch_int(T1, ACC, s); // coloca o resultado da avaliação no registrador T1
   emit_beq(T1, ZERO, loop_exit_label, s);
   // predicate holds
-  body->code(s, ctx); // execute body and loop again
-  emit_jump_to_label(loop_begin_label, s);
+  body->code(s, ctx); // Gera o código para o corpo do loop, que representa o conjunto de instruções a serem executadas repetidamente enquanto o predicado for verdadeiro
+  emit_jump_to_label(loop_begin_label, s); //Gera uma instrução de salto incondicional para retornar ao início do loop, reiniciando o processo de avaliação do predicado e execução do corpo
   // predicate fails
-  emit_label_def(loop_exit_label, s);
+  emit_label_def(loop_exit_label, s);// marca o ponto de saída do loop
   
-  emit_move(ACC, ZERO, s);
+  emit_move(ACC, ZERO, s);//Move explicitamente o valor zero para o registrador ACC, garantindo que seu valor seja zero antes de sair do loop.
 }
 
 void typcase_class::code(ostream &s, cgen_context ctx) {
@@ -1562,24 +1561,33 @@ void typcase_class::code(ostream &s, cgen_context ctx) {
   emit_label_def(typcase_branch_match_succesfull_label, s);
 }
 
-void block_class::code(ostream &s, cgen_context ctx) {
+void block_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
   for (int i = body->first(); body->more(i); i = body->next(i))
     body->nth(i)->code(s, ctx);
 }
 
-void let_class::code(ostream &s, cgen_context ctx) {
+void let_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
   init->code(s, ctx);
 
   bool should_emit_default_init = dynamic_cast<no_expr_class*>(init) != nullptr;
 
   if (should_emit_default_init) {
     if (type_decl == Str) {
-        emit_load_string(ACC, stringtable.lookup_string(""), s);
+      emit_load_string(ACC, stringtable.lookup_string(""), s);
     } else if (type_decl == Int) {
-        emit_load_int(ACC, inttable.lookup_string("0"), s);
+      emit_load_int(ACC, inttable.lookup_string("0"), s);
     } else if (type_decl == Bool) {
-        emit_load_bool(ACC, BoolConst(0), s);
+      emit_load_bool(ACC, BoolConst(0), s);
     }
+  } else {
+      bool is_basic_type = (type_decl == Str) || (type_decl == Int) || (type_decl == Bool);
+
+      if (is_basic_type) {
+        ctx.push_scope_identifier(identifier);
+        body->code(s, ctx);
+        ctx.pop_scope_identifier();
+        return;
+      }
   }
 
   ctx.push_scope_identifier(identifier);
@@ -1589,32 +1597,45 @@ void let_class::code(ostream &s, cgen_context ctx) {
   ctx.pop_scope_identifier();
 }
 
-void plus_class::code(ostream &s, cgen_context ctx) {
+void plus_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+  // Avalia a primeira expressão e armazena o resultado em ACC
   this->e1->code(s, ctx);
-  emit_push(ACC, s);
-  ctx.push_scope_identifier(No_type);
-  this->e2->code(s, ctx);
-  emit_jal("Object.copy", s);
-  emit_pop(T1, s);
-  ctx.pop_scope_identifier();
 
+  // Salva o resultado da primeira expressão no registrador T1
+  emit_move(T1, ACC, s);
+
+  // Avalia a segunda expressão e armazena o resultado em ACC
+  this->e2->code(s, ctx);
+
+  // Converte os valores das expressões para inteiros
   emit_fetch_int(T1, T1, s);
   emit_fetch_int(T2, ACC, s);
+
+  // Realiza a operação de adição e armazena o resultado em ACC
   emit_add(T3, T1, T2, s);
+
+  // Cria um novo objeto Int e armazena o resultado da adição nele
   emit_store_int(T3, ACC, s);
 }
 
 void sub_class::code(ostream &s, cgen_context ctx) {
+  // Avalia a primeira expressão e armazena o resultado em ACC
   this->e1->code(s, ctx);
-  emit_push(ACC, s);
-  ctx.push_scope_identifier(No_type);
+
+  // Salva o resultado da primeira expressão no registrador T1
+  emit_move(T1, ACC, s);
+
+  // Avalia a segunda expressão e armazena o resultado em ACC
   this->e2->code(s, ctx);
-  emit_jal("Object.copy", s);
-  emit_pop(T1, s);
-  ctx.pop_scope_identifier();
+
+  // Converte os valores das expressões para inteiros
   emit_fetch_int(T1, T1, s);
   emit_fetch_int(T2, ACC, s);
+
+  // Realiza a operação de subtração e armazena o resultado em ACC
   emit_sub(T3, T1, T2, s);
+
+  // Cria um novo objeto Int e armazena o resultado da subtração nele
   emit_store_int(T3, ACC, s);
 }
 
@@ -1811,12 +1832,9 @@ void isvoid_class::code(ostream &s, cgen_context ctx) {  ///////////////////////
   emit_label_def(done_label, s);
 }
 
-
 void no_expr_class::code(ostream &s, cgen_context ctx) {
   emit_move(ACC, ZERO, s);
 }
-
-
 
 void object_class::code(ostream &s, cgen_context ctx) { ////////////////////////////////////////// otimizado
   int scope_stack_offset = ctx.get_scope_identifier_offset(name);
