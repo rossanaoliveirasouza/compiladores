@@ -1352,31 +1352,29 @@ void assign_class::code(ostream &s, cgen_context ctx) {
   }
 }
 
-void static_dispatch_class::code(ostream &s, cgen_context ctx) {
-  Expressions actual_method_args = actual;
-  Symbol dispatch_target_type = type_name;
-  int actual_argument_ix = actual_method_args->first();
+void static_dispatch_class::code(ostream &s, cgen_context ctx) { ///////////////////////////////////////// otimizado
+  int actual_argument_ix = actual->first();
   int dispatch_start_label = next_label();
-  int dispatch_offset = ctx.get_class_method_dispatch_offset(dispatch_target_type, name);
-  Class_ class_definition = ctx.self_class_definition;
+  int dispatch_offset = ctx.get_class_method_dispatch_offset(type_name, name);
 
-  while (actual_method_args->more(actual_argument_ix))
-  {
-      Expression actual_argument = actual_method_args->nth(actual_argument_ix);
-      actual_argument->code(s, ctx);
+  while (actual->more(actual_argument_ix)) {
+    Expression actual_argument = actual->nth(actual_argument_ix);
+    actual_argument->code(s, ctx);
+    if (actual_argument->get_type() != No_type) {
       emit_push(ACC, s);
-      ctx.push_scope_identifier(No_type);
-      actual_argument_ix = actual_method_args->next(actual_argument_ix);
+    }
+    ctx.push_scope_identifier(No_type);
+    actual_argument_ix = actual->next(actual_argument_ix);
   }
 
   expr->code(s, ctx); // ACC has dispatch object
 
-  //  Ensure dispatch to existing object
+  // Ensure dispatch to existing object
   emit_bne(ACC, ZERO, dispatch_start_label, s);
-  //  Dispatch to void
+  // Dispatch to void
   emit_partial_load_address(ACC, s);
-  stringtable.lookup_string(class_definition->get_filename()->get_string())->code_ref(s);
-  s << endl;
+  stringtable.lookup_string(ctx.self_class_definition->get_filename()->get_string())->code_ref(s);
+  s << std::endl;
   emit_load_imm(T1, get_line_number(), s);
   emit_jal("_dispatch_abort", s);
   // Dispatch to valid object
@@ -1385,6 +1383,7 @@ void static_dispatch_class::code(ostream &s, cgen_context ctx) {
   emit_load(T1, dispatch_offset, T1, s); // $t1 holds pointer to method entry
   emit_jalr(T1, s);
 }
+
 
 
 void dispatch_class::code(ostream &s, cgen_context ctx) {
@@ -1741,85 +1740,100 @@ void comp_class::code(ostream &s, cgen_context ctx) {
   emit_load_bool(ACC, BoolConst(1), s);
   emit_label_def(done_label, s);
 }
-
-void int_const_class::code(ostream& s, cgen_context ctx)  
+ 
+void int_const_class::code(ostream& s, cgen_context ctx) 
 {
-  emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
+  // Load the integer value into the accumulator.
+  IntEntry* integer = inttable.lookup_string(token->get_string());
+  emit_load_int(ACC, integer, s);
 }
 
-void string_const_class::code(ostream& s, cgen_context ctx)
+void string_const_class::code(ostream& s, cgen_context ctx) //////////////////////////////// OTIMIZADO
 {
-  emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
+  // Load the string value into the accumulator.
+  StringEntry* string = stringtable.lookup_string(token->get_string());
+  emit_load_string(ACC, string, s);
 }
 
-void bool_const_class::code(ostream& s, cgen_context ctx)
+void bool_const_class::code(ostream& s, cgen_context ctx) //////////////////////////////// OTIMIZADO
 {
-  emit_load_bool(ACC, BoolConst(val), s);
+  // Load the boolean value into the accumulator.
+  BoolConst boolean = BoolConst(val);
+  emit_load_bool(ACC, boolean, s);
 }
 
-void new__class::code(ostream &s, cgen_context ctx) {
+void new__class::code(ostream &s, cgen_context ctx) { //////////////////////////////// OTIMIZADO
   Symbol static_type = this->get_type();
-  if (type_name != SELF_TYPE) {
-    std::string target_cgen_definition = std::string(static_type->get_string()) + PROTOBJ_SUFFIX;
-    std::string target_cgen_definition_init = std::string(static_type->get_string()) + CLASSINIT_SUFFIX;
-    emit_load_address(ACC, (char *) target_cgen_definition.c_str(), s);
-    emit_jal("Object.copy", s);
-    emit_jal((char *)target_cgen_definition_init.c_str(), s);
+  if (type_name == SELF_TYPE) {
     return;
   }
+
+  std::string target_class_name = std::string(static_type->get_string());
+  std::string target_cgen_definition = target_class_name + PROTOBJ_SUFFIX;
+  emit_load_address(ACC, (char *) target_cgen_definition.c_str(), s);
+
+  emit_jal("Object.copy", s);
+
+  std::string target_cgen_definition_init = target_class_name + CLASSINIT_SUFFIX;
+  emit_jal((char *)target_cgen_definition_init.c_str(), s);
+
+  // push self into stack
   emit_load_address(T1, CLASSOBJTAB, s);
   emit_load(T2, TAG_OFFSET, SELF, s);
-  emit_load_imm(T3, 8, s);
-  emit_mul(T2, T2, T3, s);
+  emit_sll(T2, T2, 3, s); 
   emit_addu(T1, T1, T2, s);
   emit_push(T1, s);
+
+  // copy object
   emit_load(ACC, 0, T1, s);
   emit_jal("Object.copy", s);
+
+  // load method from class
   emit_pop(T1, s);
   emit_load(T1, 1, T1, s);
+
+  // jump to method
   emit_jalr(T1, s);
 }
 
-void isvoid_class::code(ostream &s, cgen_context ctx) {
-  int void_label = next_label();
+void isvoid_class::code(ostream &s, cgen_context ctx) {  ///////////////////////////// OTIMIZADO
+  int is_void_label = next_label();
   int done_label = next_label();
-
+  // Evaluate the expression
   e1->code(s, ctx);
-  emit_move(T1, ACC, s);
-  emit_beq(T1, ZERO, void_label, s);
+  // If the result is void, load true into ACC and jump to done
+  emit_beq(ACC, ZERO, is_void_label, s);
   emit_load_bool(ACC, BoolConst(0), s);
   emit_jump_to_label(done_label, s);
-  emit_label_def(void_label, s);
+  // Otherwise, load false into ACC and jump to done
+  emit_label_def(is_void_label, s);
   emit_load_bool(ACC, BoolConst(1), s);
   emit_label_def(done_label, s);
 }
+
 
 void no_expr_class::code(ostream &s, cgen_context ctx) {
   emit_move(ACC, ZERO, s);
 }
 
-void object_class::code(ostream &s, cgen_context ctx) {
+
+
+void object_class::code(ostream &s, cgen_context ctx) { ////////////////////////////////////////// otimizado
   int scope_stack_offset = ctx.get_scope_identifier_offset(name);
   int method_arg_offset = ctx.get_method_attr_offset(name);
   int class_attr_offset = ctx.get_class_attribute_identifier_offset(name);
 
-  bool is_in_scope = scope_stack_offset != -1;
-  bool is_method_argument = method_arg_offset != -1;
-  bool is_class_attr = class_attr_offset != -1;
-
-  if (is_in_scope) {
+  if (scope_stack_offset != -1) {
+    // Load from scope stack
     emit_load(ACC, scope_stack_offset + 1, SP, s);
-    return;
-  }
-  if (is_method_argument) {
+  } else if (method_arg_offset != -1) {
+    // Load from method arguments
     emit_load(ACC, 3 + method_arg_offset, FP, s);
-    return;
-  }
-  if (is_class_attr) {
+  } else if (class_attr_offset != -1) {
+    // Load from class attributes
     emit_load(ACC, class_attr_offset, SELF, s);
-    return;
+  } else {
+    // Load from self
+    emit_move(ACC, SELF, s);
   }
-
-  emit_move(ACC, SELF, s);
-  return;
 }

@@ -152,3 +152,6 @@ Instructions
 Write-up for PA5
 ----------------
 
+A classe `static_dispatch_class` representa uma chamada de método estática. A função code é responsável por gerar o código correspondente a essa chamada. O código começa com a obtenção dos argumentos atuais e do tipo de destino da chamada. Em seguida, são gerados os códigos para cada argumento atual, empilhando os valores na pilha de execução. O objeto de despacho é então colocado em ACC. Em seguida, é verificado se o objeto de despacho é vazio e, se for, é emitido um código de aborto. Caso contrário, é realizado o despacho para o objeto válido, carregando o endereço do método correspondente e realizando um salto indireto.
+
+A estratégia adotada para a geração de código leva em consideração a obtenção dos argumentos atuais, o carregamento do objeto de despacho, a verificação de nulidade do objeto e o despacho para o método apropriado. Essa estratégia visa garantir a correta execução da chamada de método estática, lidando adequadamente com casos em que o objeto de despacho não é válido.
