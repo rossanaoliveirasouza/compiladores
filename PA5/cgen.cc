@@ -1618,7 +1618,7 @@ void plus_class::code(ostream &s, cgen_context ctx) {///////////////////////////
   emit_store_int(T3, ACC, s);
 }
 
-void sub_class::code(ostream &s, cgen_context ctx) {
+void sub_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
   // Avalia a primeira expressão e armazena o resultado em ACC
   this->e1->code(s, ctx);
 
