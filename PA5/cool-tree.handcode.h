@@ -36,7 +36,18 @@ typedef Formal_class *Formal;
 class Expression_class;
 typedef Expression_class *Expression;
 class Case_class;
+
 typedef Case_class *Case;
+typedef list_node<Class_> Classes_class;
+typedef Classes_class *Classes;
+typedef list_node<Feature> Features_class;
+typedef Features_class *Features;
+typedef list_node<Formal> Formals_class;
+typedef Formals_class *Formals;
+typedef list_node<Expression> Expressions_class;
+typedef Expressions_class *Expressions;
+typedef list_node<Case> Cases_class;
+typedef Cases_class *Cases;
 
 typedef struct cgen_context
 {
@@ -48,6 +59,8 @@ typedef struct cgen_context
 	std::map<Symbol, int> 					method_attr_offset;
 	std::map<Symbol, int> 					classtag_of;
 	std::map<Symbol, std::map<Symbol, int>> dispatch_offsets_of_class_methods;
+
+	void code_dispatch(ostream &s, Expression expr, Symbol name, Expressions actual, Symbol dispatch_target_type, Class_ class_definition, int line_number);
 
 	void push_scope_identifier(Symbol identifier)
 	{
@@ -88,17 +101,6 @@ typedef struct cgen_context
 		return dispatch_offsets_of_class_methods[class_name][method_name];
 	}
 } cgen_context;
-
-typedef list_node<Class_> Classes_class;
-typedef Classes_class *Classes;
-typedef list_node<Feature> Features_class;
-typedef Features_class *Features;
-typedef list_node<Formal> Formals_class;
-typedef Formals_class *Formals;
-typedef list_node<Expression> Expressions_class;
-typedef Expressions_class *Expressions;
-typedef list_node<Case> Cases_class;
-typedef Cases_class *Cases;
 
 #define Program_EXTRAS                \
 	virtual void cgen(ostream &) = 0; \

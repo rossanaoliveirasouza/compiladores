@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <set>
 #include <queue>
+#include "tree.h"
 
 extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
@@ -1354,70 +1355,46 @@ void assign_class::code(ostream &s, cgen_context ctx) {
   }
 }
 
-void static_dispatch_class::code(ostream &s, cgen_context ctx) { 
+void cgen_context::code_dispatch(ostream &s, Expression expr, Symbol name, Expressions actual, Symbol dispatch_target_type, Class_ class_definition, int line_number) {
   int actual_argument_ix = actual->first();
   int dispatch_start_label = next_label();
-  int dispatch_offset = ctx.get_class_method_dispatch_offset(type_name, name);
+  int dispatch_offset = get_class_method_dispatch_offset(dispatch_target_type, name);
 
   while (actual->more(actual_argument_ix)) {
     Expression actual_argument = actual->nth(actual_argument_ix);
-    actual_argument->code(s, ctx);
-    if (actual_argument->get_type() != No_type) {
-      emit_push(ACC, s);
-    }
-    ctx.push_scope_identifier(No_type);
+    actual_argument->code(s, *this);
+    emit_push(ACC, s);
+    push_scope_identifier(No_type);
     actual_argument_ix = actual->next(actual_argument_ix);
   }
 
-  expr->code(s, ctx); // ACC has dispatch object
+  expr->code(s, *this); // ACC has dispatch object
 
   // Ensure dispatch to existing object
   emit_bne(ACC, ZERO, dispatch_start_label, s);
   // Dispatch to void
   emit_partial_load_address(ACC, s);
-  stringtable.lookup_string(ctx.self_class_definition->get_filename()->get_string())->code_ref(s);
-  s << std::endl;
-  emit_load_imm(T1, get_line_number(), s);
-  emit_jal("_dispatch_abort", s);
-  // Dispatch to valid object
-  emit_label_def(dispatch_start_label, s);
-  emit_load_address(T1, (char *) (std::string(type_name->get_string()) + DISPTAB_SUFFIX).c_str(), s);
-  emit_load(T1, dispatch_offset, T1, s); // $t1 holds pointer to method entry
-  emit_jalr(T1, s);
-}
-
-void dispatch_class::code(ostream &s, cgen_context ctx) {
-  Expressions actual_method_args = actual;
-  Symbol dispatch_target_type = expr->get_type() == SELF_TYPE ? ctx.self_name : expr->get_type();
-  int actual_argument_ix = actual_method_args->first();
-  int dispatch_start_label = next_label();
-  int dispatch_offset = ctx.get_class_method_dispatch_offset(dispatch_target_type, name);
-  Class_ class_definition = ctx.self_class_definition;
-
-  while (actual_method_args->more(actual_argument_ix))
-  {
-      Expression actual_argument = actual_method_args->nth(actual_argument_ix);
-      actual_argument->code(s, ctx);
-      emit_push(ACC, s);
-      ctx.push_scope_identifier(No_type);
-      actual_argument_ix = actual_method_args->next(actual_argument_ix);
-  }
-
-  expr->code(s, ctx); // ACC has dispatch object
-
-  //  Ensure dispatch to existing object
-  emit_bne(ACC, ZERO, dispatch_start_label, s);
-  //  Dispatch to void
-  emit_partial_load_address(ACC, s);
   stringtable.lookup_string(class_definition->get_filename()->get_string())->code_ref(s);
-  s << endl;
-  emit_load_imm(T1, get_line_number(), s);
+  s << std::endl;
+  emit_load_imm(T1, line_number, s);
   emit_jal("_dispatch_abort", s);
   // Dispatch to valid object
   emit_label_def(dispatch_start_label, s);
   emit_load(T1, 2, ACC, s); // $t1 holds pointer to disptab
   emit_load(T1, dispatch_offset, T1, s); // $t1 holds pointer to method entry
   emit_jalr(T1, s);
+}
+
+void static_dispatch_class::code(ostream &s, cgen_context ctx) {
+  Symbol dispatch_target_type = type_name == SELF_TYPE ? ctx.self_name : type_name;
+  int line_number = get_line_number();
+  ctx.code_dispatch(s, expr, name, actual, dispatch_target_type, ctx.self_class_definition, line_number);
+}
+
+void dispatch_class::code(ostream &s, cgen_context ctx) {
+  Symbol dispatch_target_type = expr->get_type() == SELF_TYPE ? ctx.self_name : expr->get_type();
+  int line_number = get_line_number();
+  ctx.code_dispatch(s, expr, name, actual, dispatch_target_type, ctx.self_class_definition, line_number);
 }
 
 void cond_class::code(ostream &s, cgen_context ctx) { 
@@ -1737,7 +1714,6 @@ void object_class::code(ostream &s, cgen_context ctx) {
     emit_move(ACC, SELF, s);
   }
 }
-
 
 void mul_class::code(ostream &s, cgen_context ctx) {
   this->e1->code(s, ctx);
