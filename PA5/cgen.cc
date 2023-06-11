@@ -1454,36 +1454,41 @@ void loop_class::code(ostream &s, cgen_context ctx) {///////////////////////////
   emit_move(ACC, ZERO, s);//Move explicitamente o valor zero para o registrador ACC, garantindo que seu valor seja zero antes de sair do loop.
 }
 
+
 void typcase_class::code(ostream &s, cgen_context ctx) {
-  Class_ class_definition = ctx.self_class_definition;
-  int typcase_exp_save_to_check = next_label();
-  int typcase_match_failure_label = next_label();
-  int typcase_branch_match_succesfull_label = next_label();
-  int ancestors_loop_start = next_label();
-  int ancestors_cases_start = next_label();
+  auto class_definition = ctx.self_class_definition;
+  auto typcase_exp_save_to_check = next_label();
+  auto typcase_match_failure_label = next_label();
+  auto typcase_branch_match_successful_label = next_label();
+  
+  auto ancestors_loop_start = next_label();
+  auto ancestors_cases_start = next_label();
 
   std::map<Symbol, int> branches_match_labels;
   std::map<Symbol, int> branches_classtype_tags;
   std::map<Symbol, branch_class*> branches;
-  std::vector<Symbol> branch_types;
 
-  // analyse classes and tags
+  // Analyze classes and tags
   for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
     branch_class* branch = static_cast<branch_class*>(cases->nth(i));
     Symbol branch_static_type = branch->get_declaration_type();
     branches[branch_static_type] = branch;
     branches_classtype_tags[branch_static_type] = ctx.classtag_of[branch_static_type];
     branches_match_labels[branch_static_type] = next_label();
-    branch_types.push_back(branch_static_type);
   }
 
-  std::sort(
-    std::begin(branch_types), 
-    std::end(branch_types), 
-    [&](auto const &l, auto const &r) {
-      return branches_classtype_tags[l] > branches_classtype_tags[r];
-    }
-  );
+  std::vector<Symbol> branch_types;
+  branch_types.reserve(branches.size());
+
+  for (const auto &entry : branches_classtype_tags) {
+    branch_types.emplace_back(entry.first);
+  }
+
+  // Sort the branch types by their classification type tag in descending order.
+  std::sort(std::begin(branch_types), std::end(branch_types), [&](const auto &lhs, const auto &rhs) {
+    return branches_classtype_tags.at(lhs) > branches_classtype_tags.at(rhs);
+  });
+
 
   expr->code(s, ctx);
   // Ensure dispatch to existing object
@@ -1505,17 +1510,21 @@ void typcase_class::code(ostream &s, cgen_context ctx) {
   // T6 invalid parent
   // T7 offset multiplier
 
-  emit_move(T4, T1, s);
-  emit_load_address(T5, CLASSPARENTTAB, s);
-  emit_load_imm(T6, INVALIDPARENTTAG, s);
-  emit_load_imm(T7, 4, s);
+  emit_move(T4, T1, s); // T4 is the current ancestor of expr type
+  emit_load_address(T5, CLASSPARENTTAB, s); // T5 points to the class parent table
+  emit_load_imm(T6, INVALIDPARENTTAG, s); // T6 is INVALIDPARENTTAG
+  emit_load_imm(T7, 4, s); // T7 is 4
   emit_label_def(ancestors_loop_start, s);
-  emit_bne(T4, T6, ancestors_cases_start, s);
+  emit_bne(T4, T6, ancestors_cases_start, s); // if T4 is INVALIDPARENTTAG, jump to ancestors_cases_start
   emit_jump_to_label(typcase_match_failure_label, s);
   emit_label_def(ancestors_cases_start, s);
+
   for (auto const &branch_type : branch_types) {
+    // Get the branch label and class tag.
     int branch_matched_label = branches_match_labels[branch_type];
     int branch_classtag = branches_classtype_tags[branch_type];
+
+    // Check whether the class tag matches the tag of the object.
     emit_load_imm(T2, branch_classtag, s); // $t2 -> branch_classtag
     emit_beq(T4, T2, branch_matched_label, s);
   }
@@ -1534,17 +1543,23 @@ void typcase_class::code(ostream &s, cgen_context ctx) {
     int branch_classtag = branches_classtype_tags[branch_type];
     branch_class* branch = branches[branch_type];
 
+    // Emit code for each branch
     emit_label_def(branch_matched_label, s);
 
+    // Save the current expression's value to the stack
     emit_push(ACC, s);
+
+    // Push the branch identifier to the current scope
     ctx.push_scope_identifier(branch->get_name());
 
+    // Emit code for the branch's expression
     branch->expr->code(s, ctx);
 
-    emit_pop_without_load(s);
+    // Pop the branch identifier from the current scope
     ctx.pop_scope_identifier();
 
-    emit_jump_to_label(typcase_branch_match_succesfull_label, s);
+    // Jump to the end of the typcase expr
+    emit_jump_to_label(typcase_branch_match_successful_label, s);
   }
 
   // Generate code for match failure label
@@ -1558,7 +1573,7 @@ void typcase_class::code(ostream &s, cgen_context ctx) {
   emit_jal("_case_abort", s);
 
   // Generate code for match successfull label
-  emit_label_def(typcase_branch_match_succesfull_label, s);
+  emit_label_def(typcase_branch_match_successful_label, s);
 }
 
 void block_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
