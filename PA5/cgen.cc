@@ -24,6 +24,12 @@
 
 #include "cgen.h"
 #include "cgen_gc.h"
+#include "cool-tree.handcode.h"
+#include <vector>
+#include <map>
+#include <algorithm>
+#include <set>
+#include <queue>
 
 extern void emit_string_constant(ostream& str, char *s);
 extern int cgen_debug;
@@ -322,6 +328,17 @@ static void emit_push(char *reg, ostream& str)
   emit_addiu(SP,SP,-4,str);
 }
 
+static void emit_pop(char *reg, ostream& str)
+{
+  emit_addiu(SP,SP,4,str);
+  emit_load(reg,0,SP,str);
+}
+
+static void emit_pop_without_load(ostream& str)
+{
+  emit_addiu(SP,SP,4,str);
+}
+
 //
 // Fetch the integer value in an Int object.
 // Emits code to fetch the integer value of the Integer object pointed
@@ -352,6 +369,39 @@ static void emit_gc_check(char *source, ostream &s)
 {
   if (source != A1) emit_move(A1, source, s);
   s << JAL << "_gc_check" << endl;
+}
+
+
+static void emit_spill_activation_record_registers(ostream&str) {
+  emit_addiu(SP, SP, -12, str);
+  emit_store(FP, 3, SP, str);
+  emit_store(SELF, 2, SP, str);
+  emit_store(RA, 1, SP, str);
+}
+
+static void emit_restore_activation_record_registers(ostream&str) {
+  emit_load(RA, 1, SP, str);
+  emit_load(SELF, 2, SP, str);
+  emit_load(FP, 3, SP, str);
+  emit_addiu(SP, SP, 12, str);
+}
+
+static void emit_setup_frame_pointer(ostream&str) {
+  emit_addiu(FP, SP, 4, str);
+}
+
+static void emit_setup_self_pointer(ostream&str) {
+  emit_move(SELF, ACC, str);
+}
+
+static void emit_jump_to_label(int label, ostream &s) {
+  s << "\tj\t";
+  emit_label_ref(label, s);
+  s << endl;
+}
+
+static void emit_not(char* dest, char* src, ostream &s) {
+  s << "\tnot\t" << dest << "\t" << src << endl;
 }
 
 
@@ -637,7 +687,7 @@ void CgenClassTable::install_basic_classes()
 {
 
 // The tree package uses these globals to annotate the classes built below.
-  curr_lineno  = 0;
+  // curr_lineno  = 0;
   Symbol filename = stringtable.add_string("<basic class>");
 
 //
@@ -866,6 +916,18 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
    stringtable.add_string(name->get_string());          // Add class name to string table
 }
 
+///////////////////////////////////////////////////////////////////////
+//
+// Code generation for abstract syntax tree expressions
+//
+///////////////////////////////////////////////////////////////////////
+
+// Code generation labels logic
+int current_label_ix = 0;
+int next_label() {
+  return current_label_ix++;
+}
+
 
 //******************************************************************
 //
@@ -877,58 +939,194 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //
 //*****************************************************************
 
-void assign_class::code(ostream &s) {
+void assign_class::code(ostream &s, cgen_context ctx) {
 }
 
-void static_dispatch_class::code(ostream &s) {
+void static_dispatch_class::code(ostream &s, cgen_context ctx) {
+  int argument_index = actual->first();
+  int offset = ctx.get_class_method_dispatch_offset(type_name, name);
+
+  while (actual->more(argument_index))
+  {
+      Expression argument = actual->nth(argument_index);
+      argument->code(s, ctx);
+      emit_push(ACC, s);
+      ctx.push_scope_identifier(No_type);
+      argument_index = actual->next(argument_index);
+  }
+
+  expr->code(s, ctx); // ACC has dispatch object
+
+  //  Handle dispatch to an existing object or void
+  int start_label = next_label();
+  Class_ class_definition = ctx.self_class_definition;
+
+  emit_bne(ACC, ZERO, start_label, s);
+
+  //  Handle dispatch to void
+  emit_partial_load_address(ACC, s);
+  auto class_filename = class_definition->get_filename()->get_string();
+  stringtable.lookup_string(class_filename)->code_ref(s);
+  s << endl;
+  emit_load_imm(T1, get_line_number(), s);
+  emit_jal("_dispatch_abort", s);
+
+  // Handle dispatch to valid object
+  auto address = (char *) (std::string(type_name->get_string()) + DISPTAB_SUFFIX).c_str();
+  emit_label_def(start_label, s);
+  emit_load_address(T1, address, s);
+  emit_load(T1, offset, T1, s); // $t1 holds pointer to method entry
+  emit_jalr(T1, s);
 }
 
-void dispatch_class::code(ostream &s) {
+void dispatch_class::code(ostream &s, cgen_context ctx) {
 }
 
-void cond_class::code(ostream &s) {
+void cond_class::code(ostream &s, cgen_context ctx) {
 }
 
-void loop_class::code(ostream &s) {
+void loop_class::code(ostream &s, cgen_context ctx) {
 }
 
-void typcase_class::code(ostream &s) {
+void typcase_class::code(ostream &s, cgen_context ctx) {
 }
 
-void block_class::code(ostream &s) {
+void block_class::code(ostream &s, cgen_context ctx) {
 }
 
-void let_class::code(ostream &s) {
+void let_class::code(ostream &s, cgen_context ctx) {
 }
 
-void plus_class::code(ostream &s) {
+void plus_class::code(ostream &s, cgen_context ctx) {
 }
 
-void sub_class::code(ostream &s) {
+void sub_class::code(ostream &s, cgen_context ctx) {
 }
 
-void mul_class::code(ostream &s) {
+void mul_class::code(ostream &s, cgen_context ctx) {
+  this->e1->code(s, ctx);
+  emit_push(ACC, s);
+  ctx.push_scope_identifier(No_type);
+  this->e2->code(s, ctx);
+  emit_jal("Object.copy", s);
+  emit_pop(T1, s);
+  ctx.pop_scope_identifier();
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, ACC, s);
+  emit_mul(T3, T1, T2, s);
+  emit_store_int(T3, ACC, s);
 }
 
-void divide_class::code(ostream &s) {
+void divide_class::code(ostream &s, cgen_context ctx) {
+  this->e1->code(s, ctx);
+  emit_push(ACC, s);
+  ctx.push_scope_identifier(No_type);
+  this->e2->code(s, ctx);
+  emit_jal("Object.copy", s);
+  emit_pop(T1, s);
+  ctx.pop_scope_identifier();
+  emit_fetch_int(T1, T1, s);
+  emit_fetch_int(T2, ACC, s);
+  emit_div(T3, T1, T2, s);
+  emit_store_int(T3, ACC, s);
 }
 
-void neg_class::code(ostream &s) {
+void neg_class::code(ostream &s, cgen_context ctx) {
+  e1->code(s, ctx);
+  emit_jal("Object.copy", s);
+  emit_fetch_int(T1, ACC, s);
+  emit_neg(T1, T1, s);
+  emit_store_int(T1, ACC, s);
 }
 
-void lt_class::code(ostream &s) {
+void lt_class::code(ostream &s, cgen_context ctx) {
+  int less_case_label = next_label();
+  int end_label = next_label();
+
+  e1->code(s, ctx);
+  emit_push(ACC, s);
+  ctx.push_scope_identifier(No_type);
+
+  e2->code(s, ctx);
+  emit_pop(T1, s);           // $t1 = e1_int
+  ctx.pop_scope_identifier();
+
+  emit_move(T2, ACC, s);     // $t2 = e2_int
+  emit_fetch_int(T1, T1, s); // $t1 = e1_int.val
+  emit_fetch_int(T2, T2, s); // $t2 = e2_int.val
+  emit_blt(T1, T2, less_case_label, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_jump_to_label(end_label, s);
+  emit_label_def(less_case_label, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_label_def(end_label, s);
 }
 
-void eq_class::code(ostream &s) {
+void eq_class::code(ostream &s, cgen_context ctx) {
+  int reference_equal_label = next_label();
+  int end_label = next_label();
+  e1->code(s, ctx);
+  emit_push(ACC, s);
+  ctx.push_scope_identifier(No_type);
+
+  e2->code(s, ctx);
+  emit_pop(T1, s);       // $t1 = e1_object
+  ctx.pop_scope_identifier();
+
+  emit_move(T2, ACC, s); // $t2 = e2_object
+
+  if (e1->type == Int || e1->type == Str || e1->type == Bool) {
+      emit_load_bool(ACC, BoolConst(1), s);
+      emit_load_bool(A1, BoolConst(0), s);
+      emit_jal("equality_test", s);
+      return;
+  }
+
+  emit_beq(T1, T2, reference_equal_label, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_jump_to_label(end_label, s);
+  //
+  emit_label_def(reference_equal_label, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  //
+  emit_label_def(end_label, s);
 }
 
-void leq_class::code(ostream &s) {
+void leq_class::code(ostream &s, cgen_context ctx) {
+  int less_or_equal_case_label = next_label();
+  int end_label = next_label();
+
+  e1->code(s, ctx);
+  emit_push(ACC, s);
+  ctx.push_scope_identifier(No_type);
+  e2->code(s, ctx);
+  emit_pop(T1, s);      // $t1 = e1_int
+  ctx.pop_scope_identifier();
+  emit_move(T2, ACC, s); // $t2 = e2_int
+  emit_fetch_int(T1, T1, s); // $t1 = e1_int.val
+  emit_fetch_int(T2, T2, s); // $t2 = e2_int.val
+  emit_bleq(T1, T2, less_or_equal_case_label, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_jump_to_label(end_label, s);
+  emit_label_def(less_or_equal_case_label, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_label_def(end_label, s);
 }
 
-void comp_class::code(ostream &s) {
+void comp_class::code(ostream &s, cgen_context ctx) {
+  int false_case_label = next_label();
+  int end_label = next_label();
+  e1->code(s, ctx);
+  emit_fetch_int(T1, ACC, s);
+  emit_beq(T1, ZERO, false_case_label, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_jump_to_label(end_label, s);
+  emit_label_def(false_case_label, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_label_def(end_label, s);
 }
 
-void int_const_class::code(ostream& s)  
+void int_const_class::code(ostream& s, cgen_context ctx)  
 {
   //
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
@@ -936,26 +1134,25 @@ void int_const_class::code(ostream& s)
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(ostream& s)
+void string_const_class::code(ostream& s, cgen_context ctx)
 {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(ostream& s)
+void bool_const_class::code(ostream& s, cgen_context ctx)
 {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(ostream &s) {
+void new__class::code(ostream &s, cgen_context ctx) {
 }
 
-void isvoid_class::code(ostream &s) {
+void isvoid_class::code(ostream &s, cgen_context ctx) {
 }
 
-void no_expr_class::code(ostream &s) {
+void no_expr_class::code(ostream &s, cgen_context ctx) {
 }
 
-void object_class::code(ostream &s) {
+void object_class::code(ostream &s, cgen_context ctx) {
 }
-
 
