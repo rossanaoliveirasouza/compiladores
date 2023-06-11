@@ -1316,13 +1316,13 @@ int next_label() {
 }
 
 void assign_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado 
-  expr-> code(s, ctx); // ostream &s são fluxos de saída, cgen_context ctx fornece contexto para geração do código
-// obtem deslocamentos (índices) da variável name no escopo atual
-  int scope_stack_offset = ctx.get_scope_identifier_offset(name);
+  expr-> code(s, ctx);
+// Get offsets (indices) of the variable 'name' in the current scope.  int scope_stack_offset = ctx.get_scope_identifier_offset(name);
   int method_arg_offset = ctx.get_method_attr_offset(name);
   int class_attr_offset = ctx.get_class_attribute_identifier_offset(name);
-// se for != de -1 significa que a variável está no escopo atual
-// armazena o valor no local correto da pilha de escopos e se necessário passa o coletor de lixo
+
+// If it's != -1, it means the variable is in the current scope.
+// Stores the value in the appropriate location of the scope stack and, if necessary, triggers the garbage collector.
   if (scope_stack_offset != -1) {
     emit_store(ACC, scope_stack_offset, SP, s);
     if (cgen_Memmgr == GC_GENGC) {
@@ -1331,9 +1331,9 @@ void assign_class::code(ostream &s, cgen_context ctx) {/////////////////////////
     }
     return;
   }
-// se for != -1 significa que a variável é um argumento do método atual
-// armazena o valor no local correto do frame do método (Frame pointer - FP) e realiza coleta de lixo se necessário
-  if (method_arg_offset != -1) {
+// If it's != -1, it means the variable is an argument of the current method.
+// Stores the value in the appropriate location of the method's frame (Frame pointer - FP) and performs garbage collection if necessary.  
+if (method_arg_offset != -1) {
     emit_store(ACC, method_arg_offset + 3, FP, s);
     if (cgen_Memmgr == GC_GENGC) {
       emit_addiu(A1, FP, 4 * (method_arg_offset + 3), s);
@@ -1341,8 +1341,8 @@ void assign_class::code(ostream &s, cgen_context ctx) {/////////////////////////
     }
     return;
   }
-// nesse caso, se for verdadeiro, a variável é um atributo da classe atual
-// armazena o valor no local correto do objeto SELF, se necessário, tbm realiza coleta de lixo
+// In this case, if it's true, the variable is an attribute of the current class.
+// Stores the value in the appropriate location of the SELF object, if necessary, and also performs garbage collection.
   if (class_attr_offset != -1) {
     emit_store(ACC, class_attr_offset, SELF, s);
     if (cgen_Memmgr == GC_GENGC) {
@@ -1420,19 +1420,19 @@ void dispatch_class::code(ostream &s, cgen_context ctx) {
 }
 
 void cond_class::code(ostream &s, cgen_context ctx) { ///////////////////////////////////////// otimizado
-// ostream &s são fluxos de saída, cgen_context ctx fornece contexto para geração do código
   int done_label = next_label(); 
-
-  pred->code(s, ctx); // codigo para avaliar o predicado e coloca em T1
+  // Code to evaluate the predicate and store it in T1.
+  pred->code(s, ctx); 
   emit_fetch_int(T1, ACC, s);
-  emit_beq(T1, ZERO, done_label, s);// se T1 for zero, o predicado é falso, o fluxo é desviado para o rótulo "done_label" e o código pula para o bloco "then_exp"
-  //
-  then_exp->code(s, ctx); // gera o código a ser executado se o predicado for verdadeiro
+  // If T1 is zero, the predicate is false, the control flow is redirected to the "done_label" label, and the code jumps to the "then_exp" block.
+  emit_beq(T1, ZERO, done_label, s);
+  // Generates the code to be executed if the predicate is true.
+  then_exp->code(s, ctx); 
   emit_jump_to_label(done_label, s);
-  //
-  else_exp->code(s, ctx);// gera o código a ser executado se o predicado for falso
-  //
-  emit_label_def(done_label, s); // gera o tórulo "done_label" para marcar o ponto de saída após a execução da construção condicional
+  // Generates the code to be executed if the predicate is false.
+  else_exp->code(s, ctx);
+  // Generates the "done_label" label to mark the exit point after the execution of the conditional construct.
+  emit_label_def(done_label, s); 
 }
 
 void loop_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
@@ -1453,7 +1453,6 @@ void loop_class::code(ostream &s, cgen_context ctx) {///////////////////////////
   
   emit_move(ACC, ZERO, s);//Move explicitamente o valor zero para o registrador ACC, garantindo que seu valor seja zero antes de sair do loop.
 }
-
 
 void typcase_class::code(ostream &s, cgen_context ctx) {
   auto class_definition = ctx.self_class_definition;
@@ -1613,44 +1612,34 @@ void let_class::code(ostream &s, cgen_context ctx) {////////////////////////////
 }
 
 void plus_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
-  // Avalia a primeira expressão e armazena o resultado em ACC
+  // Evaluates the first expression and stores the result in the ACC register.
   this->e1->code(s, ctx);
-
   // Salva o resultado da primeira expressão no registrador T1
   emit_move(T1, ACC, s);
-
-  // Avalia a segunda expressão e armazena o resultado em ACC
+  // Evaluates the second expression and stores the result in ACC.
   this->e2->code(s, ctx);
-
-  // Converte os valores das expressões para inteiros
+  // Converts the values of the expressions to integers.
   emit_fetch_int(T1, T1, s);
   emit_fetch_int(T2, ACC, s);
-
-  // Realiza a operação de adição e armazena o resultado em ACC
+  // Performs the addition operation and stores the result in ACC
   emit_add(T3, T1, T2, s);
-
-  // Cria um novo objeto Int e armazena o resultado da adição nele
+  // Creates a new Int object and stores the result of the addition in it
   emit_store_int(T3, ACC, s);
 }
 
 void sub_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
-  // Avalia a primeira expressão e armazena o resultado em ACC
+  // Evaluates the first expression and stores the result in ACC.
   this->e1->code(s, ctx);
-
-  // Salva o resultado da primeira expressão no registrador T1
+  //  Saves the result of the first expression in register T1.
   emit_move(T1, ACC, s);
-
-  // Avalia a segunda expressão e armazena o resultado em ACC
+  // Evaluates the second expression and stores the result in ACC.
   this->e2->code(s, ctx);
-
-  // Converte os valores das expressões para inteiros
+  // Converts the values of the expressions to integers.
   emit_fetch_int(T1, T1, s);
   emit_fetch_int(T2, ACC, s);
-
-  // Realiza a operação de subtração e armazena o resultado em ACC
+  // Performs the subtraction operation and stores the result in ACC.
   emit_sub(T3, T1, T2, s);
-
-  // Cria um novo objeto Int e armazena o resultado da subtração nele
+  // Creates a new Int object and stores the result of the subtraction in it.
   emit_store_int(T3, ACC, s);
 }
 
