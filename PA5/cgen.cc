@@ -357,6 +357,7 @@ static void emit_not(char* dest, char* src, ostream &s) {
   s << "\tnot\t" << dest << "\t" << src << endl;
 }
 
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Coding strings, ints, and booleans
@@ -856,7 +857,6 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
    stringtable.add_string(name->get_string());
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// PA5
 ///////////////////////////////////////////////////////////////////////
 //
 // Class Definition helpers
@@ -1315,14 +1315,15 @@ int next_label() {
   return current_label_ix++;
 }
 
-void assign_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado 
+void assign_class::code(ostream &s, cgen_context ctx) { 
   expr-> code(s, ctx);
-// Get offsets (indices) of the variable 'name' in the current scope.  int scope_stack_offset = ctx.get_scope_identifier_offset(name);
+  // Get offsets (indices) of the variable 'name' in the current scope.  
+  int scope_stack_offset = ctx.get_scope_identifier_offset(name);
   int method_arg_offset = ctx.get_method_attr_offset(name);
   int class_attr_offset = ctx.get_class_attribute_identifier_offset(name);
 
-// If it's != -1, it means the variable is in the current scope.
-// Stores the value in the appropriate location of the scope stack and, if necessary, triggers the garbage collector.
+  // If it's != -1, it means the variable is in the current scope.
+  // Stores the value in the appropriate location of the scope stack and, if necessary, triggers the garbage collector.
   if (scope_stack_offset != -1) {
     emit_store(ACC, scope_stack_offset, SP, s);
     if (cgen_Memmgr == GC_GENGC) {
@@ -1331,9 +1332,9 @@ void assign_class::code(ostream &s, cgen_context ctx) {/////////////////////////
     }
     return;
   }
-// If it's != -1, it means the variable is an argument of the current method.
-// Stores the value in the appropriate location of the method's frame (Frame pointer - FP) and performs garbage collection if necessary.  
-if (method_arg_offset != -1) {
+  // If it's != -1, it means the variable is an argument of the current method.
+  // Stores the value in the appropriate location of the method's frame (Frame pointer - FP) and performs garbage collection if necessary.  
+  if (method_arg_offset != -1) {
     emit_store(ACC, method_arg_offset + 3, FP, s);
     if (cgen_Memmgr == GC_GENGC) {
       emit_addiu(A1, FP, 4 * (method_arg_offset + 3), s);
@@ -1341,8 +1342,8 @@ if (method_arg_offset != -1) {
     }
     return;
   }
-// In this case, if it's true, the variable is an attribute of the current class.
-// Stores the value in the appropriate location of the SELF object, if necessary, and also performs garbage collection.
+  // In this case, if it's true, the variable is an attribute of the current class.
+  // Stores the value in the appropriate location of the SELF object, if necessary, and also performs garbage collection.
   if (class_attr_offset != -1) {
     emit_store(ACC, class_attr_offset, SELF, s);
     if (cgen_Memmgr == GC_GENGC) {
@@ -1353,7 +1354,7 @@ if (method_arg_offset != -1) {
   }
 }
 
-void static_dispatch_class::code(ostream &s, cgen_context ctx) { ///////////////////////////////////////// otimizado
+void static_dispatch_class::code(ostream &s, cgen_context ctx) { 
   int actual_argument_ix = actual->first();
   int dispatch_start_label = next_label();
   int dispatch_offset = ctx.get_class_method_dispatch_offset(type_name, name);
@@ -1419,7 +1420,7 @@ void dispatch_class::code(ostream &s, cgen_context ctx) {
   emit_jalr(T1, s);
 }
 
-void cond_class::code(ostream &s, cgen_context ctx) { ///////////////////////////////////////// otimizado
+void cond_class::code(ostream &s, cgen_context ctx) { 
   int done_label = next_label(); 
   // Code to evaluate the predicate and store it in T1.
   pred->code(s, ctx); 
@@ -1435,7 +1436,7 @@ void cond_class::code(ostream &s, cgen_context ctx) { //////////////////////////
   emit_label_def(done_label, s); 
 }
 
-void loop_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+void loop_class::code(ostream &s, cgen_context ctx) {
   //loop_begin_label e loop_exit_label: Gera dois rótulos distintos para controlar o fluxo de execução. loop_begin_label marca o início do loop, e loop_exit_label marca o ponto de saída do loop.
   int loop_begin_label = next_label();
   int loop_exit_label = next_label();
@@ -1575,12 +1576,12 @@ void typcase_class::code(ostream &s, cgen_context ctx) {
   emit_label_def(typcase_branch_match_successful_label, s);
 }
 
-void block_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+void block_class::code(ostream &s, cgen_context ctx) {
   for (int i = body->first(); body->more(i); i = body->next(i))
     body->nth(i)->code(s, ctx);
 }
 
-void let_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+void let_class::code(ostream &s, cgen_context ctx) {
   init->code(s, ctx);
 
   bool should_emit_default_init = dynamic_cast<no_expr_class*>(init) != nullptr;
@@ -1611,7 +1612,7 @@ void let_class::code(ostream &s, cgen_context ctx) {////////////////////////////
   ctx.pop_scope_identifier();
 }
 
-void plus_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+void plus_class::code(ostream &s, cgen_context ctx) {
   // Evaluates the first expression and stores the result in the ACC register.
   this->e1->code(s, ctx);
   // Salva o resultado da primeira expressão no registrador T1
@@ -1627,7 +1628,7 @@ void plus_class::code(ostream &s, cgen_context ctx) {///////////////////////////
   emit_store_int(T3, ACC, s);
 }
 
-void sub_class::code(ostream &s, cgen_context ctx) {///////////////////////////////////////// otimizado
+void sub_class::code(ostream &s, cgen_context ctx) {
   // Evaluates the first expression and stores the result in ACC.
   this->e1->code(s, ctx);
   //  Saves the result of the first expression in register T1.
@@ -1642,6 +1643,101 @@ void sub_class::code(ostream &s, cgen_context ctx) {////////////////////////////
   // Creates a new Int object and stores the result of the subtraction in it.
   emit_store_int(T3, ACC, s);
 }
+
+void int_const_class::code(ostream& s, cgen_context ctx) 
+{
+  // Load the integer value into the accumulator.
+  IntEntry* integer = inttable.lookup_string(token->get_string());
+  emit_load_int(ACC, integer, s);
+}
+
+void string_const_class::code(ostream& s, cgen_context ctx)
+{
+  // Load the string value into the accumulator.
+  StringEntry* string = stringtable.lookup_string(token->get_string());
+  emit_load_string(ACC, string, s);
+}
+
+void bool_const_class::code(ostream& s, cgen_context ctx)
+{
+  // Load the boolean value into the accumulator.
+  BoolConst boolean = BoolConst(val);
+  emit_load_bool(ACC, boolean, s);
+}
+
+void new__class::code(ostream &s, cgen_context ctx) {
+  Symbol static_type = this->get_type();
+  if (type_name == SELF_TYPE) {
+    return;
+  }
+
+  std::string target_class_name = std::string(static_type->get_string());
+  std::string target_cgen_definition = target_class_name + PROTOBJ_SUFFIX;
+  emit_load_address(ACC, (char *) target_cgen_definition.c_str(), s);
+
+  emit_jal("Object.copy", s);
+
+  std::string target_cgen_definition_init = target_class_name + CLASSINIT_SUFFIX;
+  emit_jal((char *)target_cgen_definition_init.c_str(), s);
+
+  // push self into stack
+  emit_load_address(T1, CLASSOBJTAB, s);
+  emit_load(T2, TAG_OFFSET, SELF, s);
+  emit_sll(T2, T2, 3, s); 
+  emit_addu(T1, T1, T2, s);
+  emit_push(T1, s);
+
+  // copy object
+  emit_load(ACC, 0, T1, s);
+  emit_jal("Object.copy", s);
+
+  // load method from class
+  emit_pop(T1, s);
+  emit_load(T1, 1, T1, s);
+
+  // jump to method
+  emit_jalr(T1, s);
+}
+
+void isvoid_class::code(ostream &s, cgen_context ctx) {  
+  int is_void_label = next_label();
+  int done_label = next_label();
+  // Evaluate the expression
+  e1->code(s, ctx);
+  // If the result is void, load true into ACC and jump to done
+  emit_beq(ACC, ZERO, is_void_label, s);
+  emit_load_bool(ACC, BoolConst(0), s);
+  emit_jump_to_label(done_label, s);
+  // Otherwise, load false into ACC and jump to done
+  emit_label_def(is_void_label, s);
+  emit_load_bool(ACC, BoolConst(1), s);
+  emit_label_def(done_label, s);
+}
+
+void no_expr_class::code(ostream &s, cgen_context ctx) {
+  emit_move(ACC, ZERO, s);
+}
+
+void object_class::code(ostream &s, cgen_context ctx) {
+  int scope_stack_offset = ctx.get_scope_identifier_offset(name);
+  int method_arg_offset = ctx.get_method_attr_offset(name);
+  int class_attr_offset = ctx.get_class_attribute_identifier_offset(name);
+
+  if (scope_stack_offset != -1) {
+    // Load from scope stack
+    emit_load(ACC, scope_stack_offset + 1, SP, s);
+  } else if (method_arg_offset != -1) {
+    // Load from method arguments
+    emit_load(ACC, 3 + method_arg_offset, FP, s);
+  } else if (class_attr_offset != -1) {
+    // Load from class attributes
+    emit_load(ACC, class_attr_offset, SELF, s);
+  } else {
+    // Load from self
+    emit_move(ACC, SELF, s);
+  }
+}
+
 
 void mul_class::code(ostream &s, cgen_context ctx) {
   this->e1->code(s, ctx);
@@ -1680,8 +1776,8 @@ void neg_class::code(ostream &s, cgen_context ctx) {
 }
 
 void lt_class::code(ostream &s, cgen_context ctx) {
-  int less_label = next_label();
-  int done_label = next_label();
+  int less_case_label = next_label();
+  int end_label = next_label();
 
   e1->code(s, ctx);
   emit_push(ACC, s);
@@ -1694,17 +1790,17 @@ void lt_class::code(ostream &s, cgen_context ctx) {
   emit_move(T2, ACC, s);     // $t2 = e2_int
   emit_fetch_int(T1, T1, s); // $t1 = e1_int.val
   emit_fetch_int(T2, T2, s); // $t2 = e2_int.val
-  emit_blt(T1, T2, less_label, s);
+  emit_blt(T1, T2, less_case_label, s);
   emit_load_bool(ACC, BoolConst(0), s);
-  emit_jump_to_label(done_label, s);
-  emit_label_def(less_label, s);
+  emit_jump_to_label(end_label, s);
+  emit_label_def(less_case_label, s);
   emit_load_bool(ACC, BoolConst(1), s);
-  emit_label_def(done_label, s);
+  emit_label_def(end_label, s);
 }
 
 void eq_class::code(ostream &s, cgen_context ctx) {
-  int are_reference_equal = next_label();
-  int done_label = next_label();
+  int reference_equal_label = next_label();
+  int end_label = next_label();
   e1->code(s, ctx);
   emit_push(ACC, s);
   ctx.push_scope_identifier(No_type);
@@ -1722,19 +1818,19 @@ void eq_class::code(ostream &s, cgen_context ctx) {
       return;
   }
 
-  emit_beq(T1, T2, are_reference_equal, s);
+  emit_beq(T1, T2, reference_equal_label, s);
   emit_load_bool(ACC, BoolConst(0), s);
-  emit_jump_to_label(done_label, s);
+  emit_jump_to_label(end_label, s);
   //
-  emit_label_def(are_reference_equal, s);
+  emit_label_def(reference_equal_label, s);
   emit_load_bool(ACC, BoolConst(1), s);
   //
-  emit_label_def(done_label, s);
+  emit_label_def(end_label, s);
 }
 
 void leq_class::code(ostream &s, cgen_context ctx) {
-  int less_or_equal_label = next_label();
-  int done_label = next_label();
+  int less_or_equal_case_label = next_label();
+  int end_label = next_label();
 
   e1->code(s, ctx);
   emit_push(ACC, s);
@@ -1745,117 +1841,23 @@ void leq_class::code(ostream &s, cgen_context ctx) {
   emit_move(T2, ACC, s); // $t2 = e2_int
   emit_fetch_int(T1, T1, s); // $t1 = e1_int.val
   emit_fetch_int(T2, T2, s); // $t2 = e2_int.val
-  emit_bleq(T1, T2, less_or_equal_label, s);
+  emit_bleq(T1, T2, less_or_equal_case_label, s);
   emit_load_bool(ACC, BoolConst(0), s);
-  emit_jump_to_label(done_label, s);
-  emit_label_def(less_or_equal_label, s);
+  emit_jump_to_label(end_label, s);
+  emit_label_def(less_or_equal_case_label, s);
   emit_load_bool(ACC, BoolConst(1), s);
-  emit_label_def(done_label, s);
+  emit_label_def(end_label, s);
 }
 
 void comp_class::code(ostream &s, cgen_context ctx) {
-  int is_false = next_label();
-  int done_label = next_label();
+  int false_case_label = next_label();
+  int end_label = next_label();
   e1->code(s, ctx);
   emit_fetch_int(T1, ACC, s);
-  emit_beq(T1, ZERO, is_false, s);
+  emit_beq(T1, ZERO, false_case_label, s);
   emit_load_bool(ACC, BoolConst(0), s);
-  emit_jump_to_label(done_label, s);
-  emit_label_def(is_false, s);
+  emit_jump_to_label(end_label, s);
+  emit_label_def(false_case_label, s);
   emit_load_bool(ACC, BoolConst(1), s);
-  emit_label_def(done_label, s);
-}
- 
-void int_const_class::code(ostream& s, cgen_context ctx) 
-{
-  // Load the integer value into the accumulator.
-  IntEntry* integer = inttable.lookup_string(token->get_string());
-  emit_load_int(ACC, integer, s);
-}
-
-void string_const_class::code(ostream& s, cgen_context ctx) //////////////////////////////// OTIMIZADO
-{
-  // Load the string value into the accumulator.
-  StringEntry* string = stringtable.lookup_string(token->get_string());
-  emit_load_string(ACC, string, s);
-}
-
-void bool_const_class::code(ostream& s, cgen_context ctx) //////////////////////////////// OTIMIZADO
-{
-  // Load the boolean value into the accumulator.
-  BoolConst boolean = BoolConst(val);
-  emit_load_bool(ACC, boolean, s);
-}
-
-void new__class::code(ostream &s, cgen_context ctx) { //////////////////////////////// OTIMIZADO
-  Symbol static_type = this->get_type();
-  if (type_name == SELF_TYPE) {
-    return;
-  }
-
-  std::string target_class_name = std::string(static_type->get_string());
-  std::string target_cgen_definition = target_class_name + PROTOBJ_SUFFIX;
-  emit_load_address(ACC, (char *) target_cgen_definition.c_str(), s);
-
-  emit_jal("Object.copy", s);
-
-  std::string target_cgen_definition_init = target_class_name + CLASSINIT_SUFFIX;
-  emit_jal((char *)target_cgen_definition_init.c_str(), s);
-
-  // push self into stack
-  emit_load_address(T1, CLASSOBJTAB, s);
-  emit_load(T2, TAG_OFFSET, SELF, s);
-  emit_sll(T2, T2, 3, s); 
-  emit_addu(T1, T1, T2, s);
-  emit_push(T1, s);
-
-  // copy object
-  emit_load(ACC, 0, T1, s);
-  emit_jal("Object.copy", s);
-
-  // load method from class
-  emit_pop(T1, s);
-  emit_load(T1, 1, T1, s);
-
-  // jump to method
-  emit_jalr(T1, s);
-}
-
-void isvoid_class::code(ostream &s, cgen_context ctx) {  ///////////////////////////// OTIMIZADO
-  int is_void_label = next_label();
-  int done_label = next_label();
-  // Evaluate the expression
-  e1->code(s, ctx);
-  // If the result is void, load true into ACC and jump to done
-  emit_beq(ACC, ZERO, is_void_label, s);
-  emit_load_bool(ACC, BoolConst(0), s);
-  emit_jump_to_label(done_label, s);
-  // Otherwise, load false into ACC and jump to done
-  emit_label_def(is_void_label, s);
-  emit_load_bool(ACC, BoolConst(1), s);
-  emit_label_def(done_label, s);
-}
-
-void no_expr_class::code(ostream &s, cgen_context ctx) {
-  emit_move(ACC, ZERO, s);
-}
-
-void object_class::code(ostream &s, cgen_context ctx) { ////////////////////////////////////////// otimizado
-  int scope_stack_offset = ctx.get_scope_identifier_offset(name);
-  int method_arg_offset = ctx.get_method_attr_offset(name);
-  int class_attr_offset = ctx.get_class_attribute_identifier_offset(name);
-
-  if (scope_stack_offset != -1) {
-    // Load from scope stack
-    emit_load(ACC, scope_stack_offset + 1, SP, s);
-  } else if (method_arg_offset != -1) {
-    // Load from method arguments
-    emit_load(ACC, 3 + method_arg_offset, FP, s);
-  } else if (class_attr_offset != -1) {
-    // Load from class attributes
-    emit_load(ACC, class_attr_offset, SELF, s);
-  } else {
-    // Load from self
-    emit_move(ACC, SELF, s);
-  }
+  emit_label_def(end_label, s);
 }

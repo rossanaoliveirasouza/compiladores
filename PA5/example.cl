@@ -4,6 +4,11 @@
  *)
 
 class Main {
-  main():Int { 0 };
+    io: IO <- new IO;
+
+    main(): Int {{
+        io.out_string("Hello world!");
+        0;
+    }};
 };
 
