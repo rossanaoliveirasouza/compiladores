@@ -189,3 +189,7 @@ Os métodos code das classes`neg_class`, `lt_class`, `eq_class`, `leq_class` e `
 O método code da classe `void no_expr_class` representa uma expressão vazia em Cool, o que é equivalente a uma instrução NOP (No Operation) em outras linguagens. Nesse caso, ele simplesmente move o valor zero para o registrador ACC.
 
 O método code da classe `isvoid_class` verifica se uma expressão é nula (void) em Cool. Se a expressão for nula, ele carrega true no registrador ACC; caso contrário, carrega false.
+
+Para realizar os testes, utilizamos como base o programa desenvolvido no trabalho anterior, PA1. O código possui uma estrutura complexa e inclui várias funcionalidades em cool. No arquivo stack.cl ele utiliza classes e, além disso, é necessário a classe externa atoi.cl que deve ser compilada junto à stack.
+Para realizar este teste utilize o seguinte comando na pasta principal do projeto:
+**$ ./mycoolc PA1/stack.cl PA1/atoi.cl**
