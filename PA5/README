@@ -151,6 +151,10 @@ Instructions
 
 Write-up for PA5
 ----------------
+==================================================================================================
+Trabalho apresentado à disciplina de compiladores do Curso de Ciência da Computação da PUC - Minas
+Alunos: Rossana Souza, Lucas Milard, Natan Alexandre, Luam Gonçalves
+==================================================================================================
 
 O método code da classe `static_dispatch_class` representa uma chamada de método estática. A função code é responsável por gerar o código correspondente a essa chamada. O código começa com a obtenção dos argumentos atuais e do tipo de destino da chamada. Em seguida, são gerados os códigos para cada argumento atual, empilhando os valores na pilha de execução. O objeto de despacho é então colocado em ACC. Em seguida, é verificado se o objeto de despacho é vazio e, se for, é emitido um código de aborto. Caso contrário, é realizado o despacho para o objeto válido, carregando o endereço do método correspondente e realizando um salto indireto.
 
