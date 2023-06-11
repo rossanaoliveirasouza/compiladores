@@ -1360,29 +1360,30 @@ void cgen_context::code_dispatch(ostream &s, Expression expr, Symbol name, Expre
   int dispatch_start_label = next_label();
   int dispatch_offset = get_class_method_dispatch_offset(dispatch_target_type, name);
 
+  // Generate code for evaluating and pushing actual arguments onto the stack
   while (actual->more(actual_argument_ix)) {
     Expression actual_argument = actual->nth(actual_argument_ix);
     actual_argument->code(s, *this);
-    emit_push(ACC, s);
-    push_scope_identifier(No_type);
+    emit_push(ACC, s); // Push the evaluated argument onto the stack
+    push_scope_identifier(No_type); // Update the scope identifier stack
     actual_argument_ix = actual->next(actual_argument_ix);
   }
 
-  expr->code(s, *this); // ACC has dispatch object
+  expr->code(s, *this); // Generate code for evaluating the dispatch object, result in ACC
 
-  // Ensure dispatch to existing object
-  emit_bne(ACC, ZERO, dispatch_start_label, s);
-  // Dispatch to void
-  emit_partial_load_address(ACC, s);
-  stringtable.lookup_string(class_definition->get_filename()->get_string())->code_ref(s);
+  // Ensure dispatch to an existing object
+  emit_bne(ACC, ZERO, dispatch_start_label, s); // If ACC is not zero, jump to dispatch_start_label
+  // Dispatch to void (dispatch object is void)
+  emit_partial_load_address(ACC, s); // Load the partial address of the filename string
+  stringtable.lookup_string(class_definition->get_filename()->get_string())->code_ref(s); // Emit the reference to the filename string
   s << std::endl;
-  emit_load_imm(T1, line_number, s);
-  emit_jal("_dispatch_abort", s);
-  // Dispatch to valid object
+  emit_load_imm(T1, line_number, s); // Load the line number
+  emit_jal("_dispatch_abort", s); // Call _dispatch_abort to handle the dispatch to void case
+  // Dispatch to a valid object
   emit_label_def(dispatch_start_label, s);
-  emit_load(T1, 2, ACC, s); // $t1 holds pointer to disptab
-  emit_load(T1, dispatch_offset, T1, s); // $t1 holds pointer to method entry
-  emit_jalr(T1, s);
+  emit_load(T1, 2, ACC, s); // Load the pointer to the dispatch table into T1
+  emit_load(T1, dispatch_offset, T1, s); // Load the pointer to the method entry into T1
+  emit_jalr(T1, s); // Jump and link to the method entry
 }
 
 void static_dispatch_class::code(ostream &s, cgen_context ctx) {
